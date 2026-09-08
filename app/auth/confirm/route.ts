@@ -4,6 +4,8 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { ensureTenantForUser } from "@/lib/auth/provision";
 import { decidirConviteDoSignup } from "@/lib/auth/convite-no-signup";
+import { processarAceiteDeConvite } from "@/lib/auth/auto-accept-invite";
+import { cookieSecure } from "@/lib/supabase/cookie-secure";
 import { audit } from "@/lib/audit";
 import { env } from "@/lib/env";
 
@@ -124,10 +126,31 @@ export async function GET(request: NextRequest) {
   }
 
   if (decisao.tipo === "convite") {
-    // A sessão já está firmada, então a tela de aceite reconhece o usuário e o
-    // clique cai no `acceptInviteAction` que já existe — auditado e idempotente.
-    // Nenhuma lógica de membership nova mora aqui.
-    return redirectTo(`/team/accept-invite/${decisao.token}`);
+    // Auto-aceite imediato: a sessão já está firmada por verifyOtp/exchangeCodeForSession.
+    // Efetiva o vínculo via RPC fn_accept_team_invite e define active_org,
+    // levando o usuário direto para o CRM sem exigir clique manual extra.
+    const resAceite = await processarAceiteDeConvite(decisao.token, data.user, requestId);
+    if (!resAceite.ok) {
+      await audit({
+        action: "auth.signup_provision_recusado",
+        actorUserId: data.user.id,
+        metadata: { motivo: resAceite.error ?? "aceite_falhou" },
+        requestId,
+      });
+      return redirectTo(`/team/accept-invite/${decisao.token}`);
+    }
+
+    const redirectResponse = redirectTo("/app");
+    if (resAceite.organizationId) {
+      redirectResponse.cookies.set("active_org", resAceite.organizationId, {
+        httpOnly: true,
+        sameSite: "strict",
+        secure: cookieSecure(),
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+    }
+    return redirectResponse;
   }
 
   try {

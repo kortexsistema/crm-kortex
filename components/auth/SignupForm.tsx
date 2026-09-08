@@ -84,9 +84,7 @@ export function SignupForm({ convite }: { convite?: ConviteDoSignup }) {
          * de tentativas — e não uma segunda porta de provisionamento.
          */
         if (res.sessao_ativa) {
-          router.replace(
-            convite ? `/team/accept-invite/${convite.token}` : "/get-started",
-          );
+          router.replace(convite ? "/app" : "/get-started");
           return;
         }
         setSentTo(values.email);

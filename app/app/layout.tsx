@@ -19,12 +19,28 @@ import { ConexaoCaidaBanner } from "@/components/app/ConexaoCaidaBanner";
 import { SubscriptionWarningBanner } from "@/components/app/SubscriptionWarningBanner";
 import { IdiomaProvider } from "@/lib/i18n/IdiomaProvider";
 import { listarConexoesCaidas, type ConexaoCaida } from "@/lib/channels/health";
+import { tentarAutoAceitarConvitePendente } from "@/lib/auth/auto-accept-invite";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await loadAuthUser();
   if (!user) redirect("/login");
 
   let activeOrg = await resolveActiveOrg(user);
+
+  // Blindagem de sessão: usuário comum sem organização ativa NÃO pode navegar na casca do /app.
+  if (!activeOrg && !user.is_platform_admin) {
+    const resAuto = await tentarAutoAceitarConvitePendente(user);
+    if (resAuto?.ok) {
+      const reloadedUser = await loadAuthUser();
+      if (reloadedUser) {
+        activeOrg = await resolveActiveOrg(reloadedUser);
+      }
+    }
+    // Se continuar sem organização vinculada, redireciona para a tela de saída/recuperação
+    if (!activeOrg) {
+      redirect("/get-started");
+    }
+  }
 
   /**
    * A cor desta organização, serializada, ou `null` quando ela não tem uma.

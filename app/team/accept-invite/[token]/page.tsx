@@ -9,8 +9,10 @@
  *                                    membership and redirects to /app/inbox
  */
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { verifyInviteToken } from "@/lib/auth/invite-token";
+import { processarAceiteDeConvite } from "@/lib/auth/auto-accept-invite";
 import { authRateLimited, AUTH_LIMITS } from "@/lib/auth/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { AcceptInviteForm } from "./AcceptInviteForm";
@@ -126,14 +128,26 @@ export default async function AcceptInvitePage({ params }: PageProps) {
     );
   }
 
+  // Usuário autenticado e e-mail correspondente: auto-aceite imediato
+  const resultado = await processarAceiteDeConvite(token, user);
+  if (resultado.ok) {
+    redirect("/app");
+  }
+
   return (
     <Shell>
-      <h1 className="text-xl font-semibold">{t("Aceitar convite")}</h1>
+      <h1 className="text-xl font-semibold">{t("Convite indisponível")}</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {t("Você foi convidado para entrar como")} <strong>{payload.role}</strong>.{" "}
-        {t("Confirme abaixo para ativar seu acesso.")}
+        {t("Não foi possível aceitar este convite. Ele pode ter vencido ou seu acesso foi revogado. Peça um novo link ao administrador.")}
       </p>
-      <AcceptInviteForm token={token} label={t("Aceitar convite")} pendingLabel={t("Confirmando…")} failureLabel={t("Não foi possível aceitar este convite. Ele pode ter vencido ou seu acesso foi revogado. Peça um novo link ao administrador.")} />
+      <div className="mt-4">
+        <Link
+          href="/app"
+          className="inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          {t("Ir para o painel")}
+        </Link>
+      </div>
     </Shell>
   );
 }

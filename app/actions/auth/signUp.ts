@@ -10,6 +10,7 @@ import {
   type SignupComConviteInput,
 } from "@/lib/auth/schemas";
 import { verifyInviteToken } from "@/lib/auth/invite-token";
+import { processarAceiteDeConvite } from "@/lib/auth/auto-accept-invite";
 import { audit, hashEmail } from "@/lib/audit";
 import { authRateLimited, AUTH_LIMITS } from "@/lib/auth/rate-limit";
 import { env } from "@/lib/env";
@@ -140,6 +141,12 @@ export async function signUp(
     ip,
     userAgent,
   });
+
+  // Se o GoTrue já abriu a sessão diretamente (ex.: autoconfirm ativo) e havia
+  // convite de equipe, efetiva imediatamente o vínculo do membro e o cookie active_org.
+  if (data.session && convite && data.user) {
+    await processarAceiteDeConvite(convite, data.user, requestId);
+  }
 
   // `data.session` é o único sinal confiável de que o provedor não vai mandar
   // e-mail nenhum: ele vem preenchido exatamente quando a confirmação está
