@@ -254,6 +254,16 @@ const schema = z.object({
    */
   SUPPORT_EMAIL: z.string().optional().default(""),
 
+  /**
+   * Chave PIX da plataforma para pagamento e renovação manual de assinaturas.
+   */
+  PAYMENT_PIX_KEY: z.string().optional().default(""),
+
+  /**
+   * Número de WhatsApp de suporte/financeiro do Administrador Master para envio de comprovantes.
+   */
+  SUPPORT_WHATSAPP: z.string().optional().default(""),
+
   // EPIC-11 Impersonate cookie HMAC secret. Optional at boot (route returns
   // 503 at runtime if missing/short); required in prod for the feature to
   // function. Min 32 chars when present is enforced at use site.

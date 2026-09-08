@@ -16,6 +16,7 @@ import {
   ImpersonateBanner,
 } from "@/components/app/ImpersonateBanner";
 import { ConexaoCaidaBanner } from "@/components/app/ConexaoCaidaBanner";
+import { SubscriptionWarningBanner } from "@/components/app/SubscriptionWarningBanner";
 import { IdiomaProvider } from "@/lib/i18n/IdiomaProvider";
 import { listarConexoesCaidas, type ConexaoCaida } from "@/lib/channels/health";
 
@@ -35,17 +36,33 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    */
   let cssDaOrganizacao: string | null = null;
 
+  let diasRestantesAssinatura: number | null = null;
+
   // EPIC-02: gate /app/* on completed onboarding.
   // EPIC-11: gate /app/* on org not being suspended (S-11.08).
   if (activeOrg) {
     const admin = createAdminClient();
     const { data: orgRow } = await admin
       .from("organizations")
-      .select("onboarded_at, status, settings")
+      .select("onboarded_at, status, settings, subscription_expires_at, plan")
       .eq("id", activeOrg.orgId)
       .maybeSingle();
     if (orgRow && !orgRow.onboarded_at && !user.support) redirect("/onboarding");
     if (orgRow?.status === "suspended") redirect("/account-suspended");
+
+    // Validação de expiração de assinatura
+    if (orgRow?.subscription_expires_at && !user.support) {
+      const expiresAt = new Date(orgRow.subscription_expires_at).getTime();
+      const now = Date.now();
+      if (expiresAt < now) {
+        redirect("/account-suspended?reason=expired");
+      }
+      const diffMs = expiresAt - now;
+      const cincoDiasMs = 5 * 24 * 60 * 60 * 1000;
+      if (diffMs <= cincoDiasMs) {
+        diasRestantesAssinatura = Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+      }
+    }
     // G4-02: expõe visibility_mode ao client (inbox decide visões visíveis).
     // Fonte confiável (admin client, org do cookie validado) — nunca do body.
     const mode = (orgRow?.settings as { visibility_mode?: VisibilityMode } | null)
@@ -158,6 +175,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div data-marca-org="" className="contents">
         <EstiloDaMarcaDaOrganizacao css={cssDaOrganizacao} />
         <ImpersonateBanner impersonating={impersonating} />
+        <SubscriptionWarningBanner diasRestantes={diasRestantesAssinatura} />
         <ConexaoCaidaBanner caidas={conexoesCaidas} />
         {needsMfaGate ? (
           // Gate always mounted for MFA-required roles; it latches the blocking

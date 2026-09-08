@@ -94,17 +94,26 @@ export function TenantsTableSkeleton() {
       <Table>
         <TableHeader>
           <TableRow>
-            {["Slug", t("Nome"), "CNPJ", t("Status"), t("Users"), t("Conversas"), t("Criado em"), ""].map(
-              (h) => (
-                <TableHead key={h}>{h}</TableHead>
-              ),
-            )}
+            {[
+              "Slug",
+              t("Nome"),
+              "CNPJ",
+              t("Status"),
+              t("Plano"),
+              t("Vencimento"),
+              t("Users"),
+              t("Conversas"),
+              t("Criado em"),
+              "",
+            ].map((h) => (
+              <TableHead key={h}>{h}</TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {Array.from({ length: 5 }).map((_, i) => (
             <TableRow key={i}>
-              {Array.from({ length: 8 }).map((__, j) => (
+              {Array.from({ length: 10 }).map((__, j) => (
                 <TableCell key={j}>
                   <Skeleton className="h-4 w-full max-w-[120px]" />
                 </TableCell>
@@ -148,6 +157,8 @@ export function TenantsTable({
     );
   }
 
+  const now = new Date();
+
   return (
     <div className="space-y-4">
       <div className="rounded-md border">
@@ -157,43 +168,77 @@ export function TenantsTable({
               <TableHead className="w-[140px]">Slug</TableHead>
               <TableHead>{t("Nome")}</TableHead>
               <TableHead className="w-[130px]">CNPJ</TableHead>
-              <TableHead className="w-[110px]">{t("Status")}</TableHead>
-              <TableHead className="w-[70px] text-right">{t("Users")}</TableHead>
-              <TableHead className="w-[90px] text-right">{t("Conversas")}</TableHead>
-              <TableHead className="w-[90px]">{t("Criado em")}</TableHead>
-              <TableHead className="w-[60px]" />
+              <TableHead className="w-[100px]">{t("Status")}</TableHead>
+              <TableHead className="w-[90px]">{t("Plano")}</TableHead>
+              <TableHead className="w-[110px]">{t("Vencimento")}</TableHead>
+              <TableHead className="w-[65px] text-right">{t("Users")}</TableHead>
+              <TableHead className="w-[85px] text-right">{t("Conversas")}</TableHead>
+              <TableHead className="w-[85px]">{t("Criado em")}</TableHead>
+              <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="font-mono text-xs">{row.slug}</TableCell>
-                <TableCell className="font-medium">{row.display_name}</TableCell>
-                <TableCell className="font-mono text-xs text-muted-foreground">
-                  {shortCnpj(row.cnpj)}
-                </TableCell>
-                <TableCell>
-                  <StatusBadge status={row.status} onboardedAt={row.onboarded_at} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {extractCount(row.user_count)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {extractCount(row.conversations_count)}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {formatDate(row.created_at, tagDoIdioma)}
-                </TableCell>
-                <TableCell>
-                  <Link
-                    href={`/admin/tenants/${row.id}`}
-                    className="text-xs font-medium text-accent hover:underline"
-                  >
-                    {t("Ver")}
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))}
+            {data.map((row) => {
+              const expiresAt = row.subscription_expires_at
+                ? new Date(row.subscription_expires_at)
+                : null;
+              const isExpired = expiresAt ? expiresAt < now : false;
+              const daysLeft = expiresAt
+                ? Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                : null;
+
+              return (
+                <TableRow key={row.id}>
+                  <TableCell className="font-mono text-xs">{row.slug}</TableCell>
+                  <TableCell className="font-medium">{row.display_name}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {shortCnpj(row.cnpj)}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={row.status} onboardedAt={row.onboarded_at} />
+                  </TableCell>
+                  <TableCell className="text-xs uppercase font-medium text-muted-foreground">
+                    {row.plan ?? "standard"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {expiresAt ? (
+                      isExpired ? (
+                        <span className="font-semibold text-destructive">
+                          {formatDate(row.subscription_expires_at ?? null, tagDoIdioma)}
+                        </span>
+                      ) : daysLeft !== null && daysLeft <= 5 ? (
+                        <span className="font-medium text-amber-600 dark:text-amber-400">
+                          {formatDate(row.subscription_expires_at ?? null, tagDoIdioma)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {formatDate(row.subscription_expires_at ?? null, tagDoIdioma)}
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {extractCount(row.user_count)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {extractCount(row.conversations_count)}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {formatDate(row.created_at, tagDoIdioma)}
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      href={`/admin/tenants/${row.id}`}
+                      className="text-xs font-medium text-accent hover:underline"
+                    >
+                      {t("Ver")}
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

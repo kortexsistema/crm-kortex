@@ -17,6 +17,7 @@
  * runtime, and we have access to AAL state).
  */
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,7 +32,7 @@ export interface PlatformAdminContext {
   platformAdmin: PlatformAdminInfo;
 }
 
-export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
+export const requirePlatformAdmin = cache(async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
   const supabase = await createClient();
 
   const {
@@ -68,4 +69,4 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
       mfa_required: paRow.mfa_required,
     },
   };
-}
+});

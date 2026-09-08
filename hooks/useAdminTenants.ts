@@ -16,6 +16,8 @@ export interface AdminTenantRow {
   onboarded_at: string | null;
   suspended_at: string | null;
   created_at: string;
+  plan?: string | null;
+  subscription_expires_at?: string | null;
   user_count: Array<{ count: number }> | null;
   conversations_count: Array<{ count: number }> | null;
 }

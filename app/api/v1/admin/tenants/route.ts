@@ -78,6 +78,8 @@ export async function GET(req: NextRequest) {
       legal_name,
       cnpj,
       status,
+      plan,
+      subscription_expires_at,
       onboarded_at,
       suspended_at,
       created_at,

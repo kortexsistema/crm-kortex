@@ -237,3 +237,18 @@ export async function marcaDaSaida(organizationId: string | null): Promise<Marca
 export function emailDeSuporte(): string {
   return env.SUPPORT_EMAIL.trim();
 }
+
+/**
+ * A chave PIX configurada para recebimento e renovação manual.
+ */
+export function pixDePagamento(): string {
+  return env.PAYMENT_PIX_KEY?.trim() ?? "";
+}
+
+/**
+ * O telefone/WhatsApp do suporte ou financeiro para recebimento de comprovantes.
+ */
+export function whatsappDeSuporte(): string {
+  return env.SUPPORT_WHATSAPP?.trim() ?? "";
+}
+

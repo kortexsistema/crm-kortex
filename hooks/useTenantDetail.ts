@@ -19,6 +19,8 @@ export interface TenantOrganization {
   suspended_at: string | null;
   created_at: string;
   settings: Record<string, unknown> | null;
+  plan?: "standard" | "pro" | "enterprise" | string | null;
+  subscription_expires_at?: string | null;
 }
 
 export interface TenantCounts {
