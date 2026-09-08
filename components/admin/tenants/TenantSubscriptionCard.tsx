@@ -41,6 +41,7 @@ export function TenantSubscriptionCard({
   const [loading, setLoading] = useState(false);
 
   const expiresDate = subscriptionExpiresAt ? new Date(subscriptionExpiresAt) : null;
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   let statusBadgeVariant: "success" | "warning" | "error" | "neutral" = "success";
   let statusBadgeLabel = t("Ativa");

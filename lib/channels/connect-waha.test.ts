@@ -5,17 +5,28 @@ vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 const org = "20000000-0000-4000-8000-000000000001";
 const key = "20000000-0000-4000-8000-000000000002";
 const channel = { id: key, organization_id: org, waha_session_name: "owned", status: "STARTING", archived_at: null };
-function fixture() {
+function fixture(channelOverrides?: Partial<typeof channel>) {
+  const ch = { ...channel, ...channelOverrides };
   const finishes: Record<string, unknown>[] = [];
-  const db = { rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
-    if (name === "fn_reserve_channel_connection") return { data: { channel, receipt_id: key, lease_token: key, replay: false }, error: null };
-    finishes.push(args);
-    return { data: { ...channel, status: args.p_status }, error: null };
-  }) } as unknown as SupabaseClient;
-  const transport = { getVerifiedSession: vi.fn(async () => null), createSession: vi.fn(async () => ({ created: true, session: { name: "owned", status: "STOPPED" } })),
-    startExistingSession: vi.fn(async () => ({ name: "owned", status: "SCAN_QR_CODE" })),
+  const dbUpdates: Record<string, unknown>[] = [];
+  const db = {
+    rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "fn_reserve_channel_connection") return { data: { channel: ch, receipt_id: key, lease_token: key, replay: false }, error: null };
+      finishes.push(args);
+      return { data: { ...ch, status: args.p_status }, error: null };
+    }),
+    from: vi.fn(() => ({
+      update: vi.fn((vals: Record<string, unknown>) => {
+        dbUpdates.push(vals);
+        Object.assign(ch, vals);
+        return { eq: vi.fn(async () => ({ error: null })) };
+      }),
+    })),
+  } as unknown as SupabaseClient;
+  const transport = { getVerifiedSession: vi.fn(async (_name?: string) => null), createSession: vi.fn(async (_name?: string) => ({ created: true, session: { name: ch.waha_session_name.slice(0, 54), status: "STOPPED" } })),
+    startExistingSession: vi.fn(async (_name?: string) => ({ name: ch.waha_session_name.slice(0, 54), status: "SCAN_QR_CODE" })),
     deleteSession: vi.fn(async () => {}), stopSession: vi.fn(async () => {}) };
-  return { db, transport, finishes, input: { organizationId: org, idempotencyKey: key, userId: key, requestId: key } };
+  return { db, transport, finishes, dbUpdates, input: { organizationId: org, idempotencyKey: key, userId: key, requestId: key } };
 }
 describe("conexão recuperável", () => {
   it("publica somente o status confirmado pelo transporte e pelo DB", async () => {
@@ -64,5 +75,18 @@ describe("conexão recuperável", () => {
     vi.mocked(f.db.rpc).mockResolvedValue({ data: { channel: { ...channel, status: "SCAN_QR_CODE" }, receipt_id: key, replay: true }, error: null } as never);
     expect((await connectWahaChannel(f.db, f.db, f.transport, f.input)).replay).toBe(true);
     expect(f.transport.createSession).not.toHaveBeenCalled();expect(f.transport.deleteSession).not.toHaveBeenCalled();
+  });
+  it("trunca waha_session_name maior que 54 caracteres e sincroniza no banco antes do transporte", async () => {
+    const nomeLongo = "org_12345678123456781234567812345678_12345678123456781234567812345678";
+    const f = fixture({ waha_session_name: nomeLongo });
+    f.transport.createSession.mockImplementation(async (name: string = "") => ({ created: true, session: { name, status: "STOPPED" } }));
+    f.transport.startExistingSession.mockImplementation(async (name: string = "") => ({ name, status: "SCAN_QR_CODE" }));
+
+    const result = await connectWahaChannel(f.db, f.db, f.transport, f.input);
+    expect(result.channel.waha_session_name.length).toBe(54);
+    expect(result.channel.waha_session_name).toBe(nomeLongo.slice(0, 54));
+    expect(f.transport.createSession).toHaveBeenCalledWith(nomeLongo.slice(0, 54));
+    expect(f.transport.startExistingSession).toHaveBeenCalledWith(nomeLongo.slice(0, 54));
+    expect(f.dbUpdates).toEqual([{ waha_session_name: nomeLongo.slice(0, 54) }]);
   });
 });

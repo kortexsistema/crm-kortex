@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { audit } from "@/lib/audit";
 import type { WahaClient } from "@/lib/waha/client";
-import { WahaSessionError } from "@/lib/waha/client";
+import { WahaSessionError, sanitizeWahaSessionName } from "@/lib/waha/client";
 
 const channelSchema = z.object({
   id: z.string().uuid(), organization_id: z.string().uuid(), waha_session_name: z.string(),
@@ -43,6 +43,15 @@ export async function connectWahaChannel(authDb: SupabaseClient, serviceDb: Supa
   if (!channel || channel.organization_id !== input.organizationId) throw new ChannelConnectionError("connection_reservation_missing", 410);
   if (receipt.replay) return { channel, replay: true };
   if (!receipt.lease_token) throw new ChannelConnectionError("connection_lease_lost", 409);
+
+  if (channel.waha_session_name.length > 54) {
+    channel.waha_session_name = sanitizeWahaSessionName(channel.waha_session_name);
+    await serviceDb
+      .from("channel_sessions")
+      .update({ waha_session_name: channel.waha_session_name })
+      .eq("id", channel.id);
+  }
+
   let created = false;
   async function finish(status: string, reason?: string) {
     const result = await serviceDb.rpc("fn_finish_channel_connection", {

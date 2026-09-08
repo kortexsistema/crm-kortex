@@ -33,8 +33,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-
-import { TETO_PADRAO_MS, TETO_DE_MIDIA_MS, WahaClient } from "./client";
+import { TETO_PADRAO_MS, TETO_DE_MIDIA_MS, WahaClient, sanitizeWahaSessionName } from "./client";
 
 /** Sockets aceitos e deixados pendurados — o modo de falha caro. */
 let mudo: Server;
@@ -464,3 +463,27 @@ describe("sessões: conflito conhecido só converge com identidade e pós-condi�
   });
 
 });
+
+describe("sanitizeWahaSessionName e limite estrito de 54 caracteres do WAHA", () => {
+  it("preserva nomes com 54 ou menos caracteres", () => {
+    expect(sanitizeWahaSessionName("org_12345678_abcd")).toBe("org_12345678_abcd");
+    const exatamente54 = "a".repeat(54);
+    expect(sanitizeWahaSessionName(exatamente54)).toBe(exatamente54);
+    expect(sanitizeWahaSessionName(exatamente54).length).toBe(54);
+  });
+
+  it("trunca nomes com mais de 54 caracteres estritamente para 54 caracteres", () => {
+    const nome69 = "org_12345678123456781234567812345678_12345678123456781234567812345678";
+    expect(nome69.length).toBe(69);
+    const saneado = sanitizeWahaSessionName(nome69);
+    expect(saneado.length).toBe(54);
+    expect(saneado).toBe(nome69.slice(0, 54));
+  });
+
+  it("lida com entradas vazias ou não-string graciosamente", () => {
+    expect(sanitizeWahaSessionName("")).toBe("");
+    expect(sanitizeWahaSessionName(null as unknown as string)).toBe(null);
+    expect(sanitizeWahaSessionName(undefined as unknown as string)).toBe(undefined);
+  });
+});
+

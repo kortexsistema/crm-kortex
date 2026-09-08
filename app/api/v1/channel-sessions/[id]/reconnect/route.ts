@@ -43,7 +43,7 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { ARCHIVED_AT, queryTolerantToMissingArchived } from "@/lib/channels/archived";
 import { createClient } from "@/lib/supabase/server";
-import { getWahaClient, wahaFriendlyError } from "@/lib/waha/client";
+import { getWahaClient, sanitizeWahaSessionName, wahaFriendlyError } from "@/lib/waha/client";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
@@ -113,7 +113,7 @@ export async function POST(
   // aqui (era um cast) não fazia o valor existir: mandava `null` para o
   // transporte, que pedia `/api/sessions/null/stop` e devolvia erro de serviço —
   // culpando o WhatsApp por uma pergunta que nunca fez sentido.
-  const nomeSessao = session.waha_session_name;
+  let nomeSessao = session.waha_session_name;
   if (!nomeSessao) {
     return fail(
       "channel_without_session",
@@ -121,6 +121,15 @@ export async function POST(
       422,
       { requestId },
     );
+  }
+
+  if (nomeSessao.length > 54) {
+    nomeSessao = sanitizeWahaSessionName(nomeSessao);
+    await createAdminClient()
+      .from("channel_sessions")
+      .update({ waha_session_name: nomeSessao })
+      .eq("organization_id", activeOrg.orgId)
+      .eq("id", id);
   }
 
   const waha = getWahaClient();

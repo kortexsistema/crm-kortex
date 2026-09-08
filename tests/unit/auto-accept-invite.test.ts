@@ -6,11 +6,11 @@ import {
 } from "@/lib/auth/auto-accept-invite";
 import { signInviteToken } from "@/lib/auth/invite-token";
 
-let mockRpcResult: { data: any; error: any } = {
+let mockRpcResult: { data: unknown; error: unknown } = {
   data: { id: "membership-1", changed: true },
   error: null,
 };
-let mockUserMetadata: Record<string, any> = {};
+let mockUserMetadata: Record<string, unknown> = {};
 const mockCookieSet = vi.fn();
 
 vi.mock("next/headers", () => ({

@@ -7,10 +7,10 @@ import {
   plataformaTemIaConfigurada,
 } from "@/lib/ai/credenciais/plataforma";
 
-let mockRows: any[] = [];
-let mockError: any = null;
-let mockSafeRows: any[] = [];
-let mockSafeError: any = null;
+let mockRows: unknown[] = [];
+let mockError: unknown = null;
+let mockSafeRows: unknown[] = [];
+let mockSafeError: unknown = null;
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -30,7 +30,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 vi.mock("@/lib/crypto/aes_gcm", () => ({
-  byteaToBuffer: (val: any) => Buffer.isBuffer(val) ? val : Buffer.from(String(val)),
+  byteaToBuffer: (val: unknown) => Buffer.isBuffer(val) ? val : Buffer.from(String(val)),
   decryptKey: () => "decrypted-test-key-1234",
 }));
 

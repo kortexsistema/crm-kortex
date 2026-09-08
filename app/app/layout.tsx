@@ -69,6 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // Validação de expiração de assinatura
     if (orgRow?.subscription_expires_at && !user.support) {
       const expiresAt = new Date(orgRow.subscription_expires_at).getTime();
+      // eslint-disable-next-line react-hooks/purity
       const now = Date.now();
       if (expiresAt < now) {
         redirect("/account-suspended?reason=expired");

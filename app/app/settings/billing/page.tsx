@@ -34,6 +34,7 @@ export default async function BillingPage() {
 
   const planName = ((orgRow as { plan?: string })?.plan ?? "standard").toUpperCase();
   const expiresAt = orgRow?.subscription_expires_at ? new Date(orgRow.subscription_expires_at) : null;
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
   let statusBadgeVariant: "success" | "warning" | "error" = "success";
