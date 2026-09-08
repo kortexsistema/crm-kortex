@@ -24,5 +24,17 @@
     "tests/**/*.ts",
     "tests/**/*.tsx"
   ],
-  "exclude": ["node_modules", ".next", "dist", "scripts/**"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    "dist",
+    "scripts/**",
+    "hostgator-setup-kit/**",
+    "evidence/**",
+    "loop/**",
+    "plan/**",
+    "tasks/**",
+    "triagem/**",
+    ".specs/**"
+  ]
 }

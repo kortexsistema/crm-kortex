@@ -42,6 +42,13 @@
     ".next",
     "dist",
     "scripts/**",
+    "hostgator-setup-kit/**",
+    "evidence/**",
+    "loop/**",
+    "plan/**",
+    "tasks/**",
+    "triagem/**",
+    ".specs/**",
     "**/*.test.ts",
     "**/*.test.tsx",
     "tests/**"

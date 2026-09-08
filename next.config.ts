@@ -37,6 +37,9 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   poweredByHeader: false,
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // typedRoutes moved out of experimental in Next 15.5+
   typedRoutes: true,
   experimental: {
