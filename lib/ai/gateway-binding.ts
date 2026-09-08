@@ -29,6 +29,8 @@ import type { LanguageModel } from "ai";
 import { decryptKey, byteaToBuffer } from "@/lib/crypto/aes_gcm";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { obterCredencialDecifradaDaPlataforma } from "@/lib/ai/credenciais/plataforma";
+import type { Provider } from "@/lib/ai/provider-validators";
 
 import { OPENROUTER_BASE_URL, resolveLanguageModel, type ModelId } from "./gateway";
 
@@ -78,7 +80,7 @@ export async function resolverModeloDoPonto(
     return model === null ? null : { model, modelId: String(padrao), origem: "padrao" };
   }
 
-  const apiKey = await decifrarChave(binding.credential_id, organizationId);
+  const apiKey = await decifrarChave(binding.credential_id, organizationId, binding.provider);
   if (apiKey === null) {
     // Binding configurado mas sem chave utilizável: cai no padrão em vez de
     // deixar o ponto morto. O aviso é o que impede isso de virar mais uma
@@ -207,7 +209,18 @@ async function credencialDaOrganizacao(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!data) return null;
+    if (!data) {
+      // Degrau intermediário SaaS: se a organização não tem BYOK próprio, busca
+      // a credencial global da plataforma configurada pelo Admin Master.
+      const plat = await obterCredencialDecifradaDaPlataforma(provider as Provider);
+      if (plat) {
+        return {
+          provider,
+          apiKey: plat.apiKey,
+        };
+      }
+      return null;
+    }
 
     return {
       provider,
@@ -232,12 +245,19 @@ async function credencialDaOrganizacao(
   }
 }
 
-/** Decifra a chave da organização. Plaintext só existe no retorno. */
+/** Decifra a chave da organização ou busca da plataforma se credentialId for nulo. */
 async function decifrarChave(
   credentialId: string | null,
   organizationId: string,
+  provider?: string,
 ): Promise<string | null> {
-  if (credentialId === null) return null;
+  if (credentialId === null) {
+    if (provider) {
+      const plat = await obterCredencialDecifradaDaPlataforma(provider as Provider);
+      if (plat) return plat.apiKey;
+    }
+    return null;
+  }
   try {
     const admin = createAdminClient();
     const { data } = await admin

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { CredentialRow } from "@/hooks/ai/useCredentials";
 
 import { lerAmbiente } from "@/lib/instalacao/ambiente";
+import { listarCredenciaisDaPlataforma } from "@/lib/ai/credenciais/plataforma";
 
 import { AgentForm } from "../[id]/_components/AgentForm";
 
@@ -16,18 +17,21 @@ const CREDENTIAL_COLUMNS =
   "id, organization_id, provider, label, api_key_last4, validated_at, validation_error, models_available, is_active, created_by, created_at, updated_at";
 
 /**
- * Os provedores cuja chave veio na INSTALAÇÃO (`.env`), não da tela de
- * Credenciais.
- *
- * Sai de `lerAmbiente`, a mesma leitura que o retrato da instalação usa — uma
- * segunda lista de nomes de variável divergiria no dia em que um provedor novo
- * entrasse.
+ * Os provedores cuja chave veio na PLATAFORMA (Admin Master) ou no `.env`.
  */
-function provedoresDaInstalacao(): string[] {
-  const a = lerAmbiente();
-  return Object.entries(a.chavesDeProvedor)
+async function provedoresDaInstalacao(): Promise<string[]> {
+  const [a, platCreds] = await Promise.all([
+    lerAmbiente(),
+    listarCredenciaisDaPlataforma(),
+  ]);
+  const doEnv = Object.entries(a.chavesDeProvedor)
     .filter(([, tem]) => tem)
     .map(([id]) => id);
+  const daPlataforma = platCreds
+    .filter((c) => c.is_active)
+    .map((c) => c.provider);
+
+  return Array.from(new Set([...doEnv, ...daPlataforma]));
 }
 
 export default async function NewAgentPage() {
@@ -39,12 +43,13 @@ export default async function NewAgentPage() {
   }
 
   const supabase = await createClient();
-  const [credentialsRes, channelSessions] = await Promise.all([
+  const [credentialsRes, channelSessions, provedores] = await Promise.all([
     supabase
       .from("ai_provider_credentials_safe")
       .select(CREDENTIAL_COLUMNS)
       .eq("organization_id", activeOrg.orgId),
     listSelectableChannels(supabase, activeOrg.orgId),
+    provedoresDaInstalacao(),
   ]);
 
   const credentials = (credentialsRes.data ?? []) as unknown as CredentialRow[];
@@ -54,7 +59,7 @@ export default async function NewAgentPage() {
       <AgentForm
         mode="create"
         credentials={credentials}
-        provedoresDaInstalacao={provedoresDaInstalacao()}
+        provedoresDaInstalacao={provedores}
         channelSessions={channelSessions}
       />
     </div>

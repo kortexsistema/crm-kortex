@@ -49,6 +49,8 @@ export interface LlmEdgeConfig {
    * era mudo: 5 tentativas, `media_derived_status='failed'`, zero avisos.
    */
   openrouterApiKey?: string;
+  /** Chave Google (fallback de ambiente quando nem tenant nem plataforma têm cadastrado). */
+  googleApiKey?: string;
   /**
    * TTL do prefixo estável de cache (knob LLM_CACHE_TTL). Opcional para quem
    * monta a config na mão (testes) — o seam aplica a doutrina '1h' quando ausente.
@@ -83,6 +85,8 @@ export function llmEdgeConfigFromEnv(env: {
   ANTHROPIC_API_KEY?: string;
   OPENAI_API_KEY?: string;
   OPENROUTER_API_KEY?: string;
+  GOOGLE_GENERATIVE_AI_API_KEY?: string;
+  GOOGLE_API_KEY?: string;
   LLM_CACHE_TTL?: string;
   AI_BUDGET_ENFORCEMENT?: string;
 }): LlmEdgeConfig {
@@ -90,10 +94,12 @@ export function llmEdgeConfigFromEnv(env: {
   if (ttl !== '5m' && ttl !== '1h') {
     throw new Error("LLM_CACHE_TTL inválido — use '5m' ou '1h' (default 1h)");
   }
+  const googleKey = env.GOOGLE_GENERATIVE_AI_API_KEY || env.GOOGLE_API_KEY;
   return {
     ...(env.ANTHROPIC_API_KEY ? { anthropicApiKey: env.ANTHROPIC_API_KEY } : {}),
     ...(env.OPENAI_API_KEY ? { openaiApiKey: env.OPENAI_API_KEY } : {}),
     ...(env.OPENROUTER_API_KEY ? { openrouterApiKey: env.OPENROUTER_API_KEY } : {}),
+    ...(googleKey ? { googleApiKey: googleKey } : {}),
     cacheTtl: ttl,
     // Sem `if` de valor vazio, ao contrário das chaves acima: aqui o ausente
     // TEM um significado ('on'), e o normalizador é quem o dá. Um campo
@@ -108,7 +114,7 @@ export class LlmNotConfiguredError extends Error {
   override readonly name = 'llm_not_configured';
   constructor() {
     super(
-      'org sem credencial LLM utilizável — cadastre uma chave BYOK ativa/validada em ai_provider_credentials ou defina ANTHROPIC_API_KEY / OPENAI_API_KEY (fallback de plataforma, conforme o provider do modelo)',
+      'org sem credencial LLM utilizável — cadastre uma chave BYOK ativa/validada em ai_provider_credentials, configure o provedor no painel /admin (Admin Master), ou defina ANTHROPIC_API_KEY / OPENAI_API_KEY no .env (fallback de plataforma)',
     );
   }
 }
@@ -329,14 +335,45 @@ export async function resolveOrgLlmConfig(
       iv: byteaToBuffer(cred.api_key_iv),
       tag: byteaToBuffer(cred.api_key_tag),
     });
-  } else if (provider === 'anthropic' && cfg.anthropicApiKey) {
-    apiKey = cfg.anthropicApiKey;
-  } else if (provider === 'openai' && cfg.openaiApiKey) {
-    apiKey = cfg.openaiApiKey;
-  } else if (provider === 'openrouter' && cfg.openrouterApiKey) {
-    apiKey = cfg.openrouterApiKey;
   } else {
-    throw new LlmNotConfiguredError();
+    // 1. Tenta a credencial da plataforma configurada pelo Admin Master
+    let platformKey: string | null = null;
+    try {
+      const { rows: platRows } = await db.query<{
+        api_key_encrypted: unknown;
+        api_key_iv: unknown;
+        api_key_tag: unknown;
+      }>(
+        `select api_key_encrypted, api_key_iv, api_key_tag
+         from platform_ai_credentials
+         where provider = $1 and is_active
+         limit 1`,
+        [provider],
+      );
+      if (platRows[0]) {
+        platformKey = decryptKey({
+          ciphertext: byteaToBuffer(platRows[0].api_key_encrypted),
+          iv: byteaToBuffer(platRows[0].api_key_iv),
+          tag: byteaToBuffer(platRows[0].api_key_tag),
+        });
+      }
+    } catch {
+      // Fallback defensivo caso a tabela não exista em clone desatualizado
+    }
+
+    if (platformKey) {
+      apiKey = platformKey;
+    } else if (provider === 'anthropic' && cfg.anthropicApiKey) {
+      apiKey = cfg.anthropicApiKey;
+    } else if (provider === 'openai' && cfg.openaiApiKey) {
+      apiKey = cfg.openaiApiKey;
+    } else if (provider === 'openrouter' && cfg.openrouterApiKey) {
+      apiKey = cfg.openrouterApiKey;
+    } else if (provider === 'google' && cfg.googleApiKey) {
+      apiKey = cfg.googleApiKey;
+    } else {
+      throw new LlmNotConfiguredError();
+    }
   }
 
   return {

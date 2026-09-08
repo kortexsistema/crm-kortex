@@ -23303,6 +23303,42 @@ end $$;
 revoke all on function public.fn_create_tenant_with_owner(uuid, uuid, jsonb, text) from public, anon, authenticated;
 grant execute on function public.fn_create_tenant_with_owner(uuid, uuid, jsonb, text) to service_role;
 
+-- =============================================================================
+-- Migration 0233 (apêndice idempotente): Credenciais de IA globais da plataforma
+-- =============================================================================
+create table if not exists public.platform_ai_credentials (
+  provider text primary key check (provider in ('anthropic', 'openai', 'google', 'openrouter')),
+  api_key_encrypted bytea not null,
+  api_key_iv bytea not null,
+  api_key_tag bytea not null,
+  api_key_last4 text not null,
+  models_available text[],
+  validated_at timestamptz,
+  validation_error text,
+  is_active boolean not null default true,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+comment on table public.platform_ai_credentials is
+  'Credenciais de IA globais da instalação configuradas pelo Admin Master. Server-side only: RLS ligada sem policies e grants revogados de anon/authenticated.';
+
+alter table public.platform_ai_credentials enable row level security;
+
+revoke all on public.platform_ai_credentials from anon, authenticated;
+grant select, insert, update, delete on public.platform_ai_credentials to service_role;
+
+drop view if exists public.platform_ai_credentials_safe;
+create view public.platform_ai_credentials_safe
+  with (security_invoker = false)
+  as
+  select provider, api_key_last4, models_available, validated_at,
+         validation_error, is_active, updated_at, updated_by
+  from public.platform_ai_credentials;
+
+revoke all on public.platform_ai_credentials_safe from anon, authenticated;
+grant select on public.platform_ai_credentials_safe to service_role;
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ ESTE BLOCO É, DE PROPÓSITO, O ÚLTIMO DO ARQUIVO. Apêndice novo entra ANTES

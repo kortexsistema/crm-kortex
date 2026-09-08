@@ -75,7 +75,7 @@ export function CredentialPicker({
           */}
           {instalacaoTemChave ? (
             <SelectItem value={CHAVE_DA_INSTALACAO}>
-              {t("A chave desta instalação")} ({provider})
+              {t("Padrão da plataforma / instalação")} ({provider})
             </SelectItem>
           ) : null}
           {filtered.map((c) => {

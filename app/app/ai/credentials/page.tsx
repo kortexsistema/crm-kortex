@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { CredentialRow } from "@/hooks/ai/useCredentials";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { contarUsoPublicado, type VersaoVinculada } from "@/lib/ai/credenciais/uso";
+import { plataformaTemIaConfigurada } from "@/lib/ai/credenciais/plataforma";
 import { CredentialsList } from "./_components/CredentialsList";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +23,11 @@ export default async function CredentialsPage() {
     redirect("/403");
   }
 
-  const supabase = await createClient();
+  const [temIaNaPlataforma, supabase] = await Promise.all([
+    plataformaTemIaConfigurada(),
+    createClient(),
+  ]);
+
   const { data } = await supabase
     .from("ai_provider_credentials_safe")
     .select(SAFE_COLUMNS)
@@ -56,6 +61,21 @@ export default async function CredentialsPage() {
           )}
         </p>
       </header>
+
+      {temIaNaPlataforma && (
+        <div className="rounded-lg border border-accent/30 bg-accent-soft/30 p-4 text-sm text-foreground">
+          <p className="font-medium text-accent">
+            {traduzir("IA inclusa no plano SaaS", idioma)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {traduzir(
+              "Esta instalação já disponibiliza provedores de inteligência artificial centralizados pelo Administrador Master. Seus agentes podem utilizar esses modelos nativamente sem necessidade de configurar chaves. Caso sua empresa prefira utilizar chaves de API próprias e dedicadas (BYOK), cadastre-as abaixo.",
+              idioma,
+            )}
+          </p>
+        </div>
+      )}
+
       <CredentialsList
         initialData={credentials}
         canWrite={canWrite}
