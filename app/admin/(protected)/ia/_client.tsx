@@ -7,6 +7,9 @@ import {
   deletePlatformAiCredential,
 } from "@/app/actions/settings/deletePlatformAiCredential";
 import {
+  syncOpenRouterCatalog,
+} from "@/app/actions/settings/syncOpenRouterCatalog";
+import {
   updatePlatformAiCredential,
 } from "@/app/actions/settings/updatePlatformAiCredential";
 import { Badge } from "@/components/ui/badge";
@@ -69,12 +72,34 @@ export function IaPlatformClient({ credenciaisIniciais, envChaves }: Props) {
   const t = useT();
   const router = useRouter();
   const [salvandoProvider, setSalvandoProvider] = useState<Provider | null>(null);
+  const [sincronizandoOpenRouter, setSincronizandoOpenRouter] = useState(false);
   const [chavesInput, setChavesInput] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
 
   const credenciaisPorProvider = new Map<Provider, PlatformAiCredentialSafe>(
     credenciaisIniciais.map((c) => [c.provider, c]),
   );
+
+  const handleSincronizarOpenRouter = () => {
+    setSincronizandoOpenRouter(true);
+    startTransition(async () => {
+      try {
+        const res = await syncOpenRouterCatalog();
+        if (res.ok) {
+          toast.success(
+            `${t("Catálogo OpenRouter sincronizado com sucesso!")} (${res.gravados} ${t("modelos gravados/atualizados")})`,
+          );
+          router.refresh();
+        } else {
+          toast.error(`${t("Erro ao sincronizar catálogo:")} ${res.error}`);
+        }
+      } catch {
+        toast.error(t("Falha ao comunicar com a OpenRouter."));
+      } finally {
+        setSincronizandoOpenRouter(false);
+      }
+    });
+  };
 
   const handleSalvar = (provider: Provider, isActiveDefault = true) => {
     const credAtual = credenciaisPorProvider.get(provider);
@@ -273,6 +298,22 @@ export function IaPlatformClient({ credenciaisIniciais, envChaves }: Props) {
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-2">
+                  {prov.id === "openrouter" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={sincronizandoOpenRouter}
+                      onClick={handleSincronizarOpenRouter}
+                    >
+                      <ArrowsClockwise
+                        size={16}
+                        className={`mr-1 ${sincronizandoOpenRouter ? "animate-spin" : ""}`}
+                      />
+                      {sincronizandoOpenRouter
+                        ? t("Sincronizando...")
+                        : t("Sincronizar Catálogo")}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     disabled={estaSalvando || !valorInput.trim()}
