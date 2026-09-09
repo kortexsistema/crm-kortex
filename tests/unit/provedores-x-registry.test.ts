@@ -172,7 +172,7 @@ describe("lista de provedores × os pontos de ESCRITA", () => {
     expect(arquivos.length, "a varredura não enxergou o código").toBeGreaterThan(200);
 
     const sobras = arquivos
-      .map((a) => relative(RAIZ_DO_REPO, a))
+      .map((a) => relative(RAIZ_DO_REPO, a).replace(/\\/g, "/"))
       .filter((caminho) => !PERMITIDOS.has(caminho))
       .filter((caminho) => TRINCA.test(readFileSync(caminho, "utf8")));
 

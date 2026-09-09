@@ -8,8 +8,10 @@ import { audit } from "@/lib/audit";
 import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { IDS_DE_PROVEDOR } from "@/lib/ai/pontos/provedores";
+
 const entradaSchema = z.object({
-  provider: z.enum(["anthropic", "openai", "google", "openrouter"]),
+  provider: z.enum(IDS_DE_PROVEDOR),
 });
 
 export type DeletePlatformAiCredentialInput = z.infer<typeof entradaSchema>;

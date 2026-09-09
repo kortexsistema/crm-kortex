@@ -10,8 +10,10 @@ import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
 import { bufToBytea, encryptKey } from "@/lib/crypto/aes_gcm";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import { IDS_DE_PROVEDOR } from "@/lib/ai/pontos/provedores";
+
 const entradaSchema = z.object({
-  provider: z.enum(["anthropic", "openai", "google", "openrouter"]),
+  provider: z.enum(IDS_DE_PROVEDOR),
   apiKey: z.string().trim().min(5, "Chave de API deve ter pelo menos 5 caracteres"),
   isActive: z.boolean().default(true),
 });

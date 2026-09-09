@@ -180,6 +180,18 @@ const DEFAULT_TRIGGER: TriggerValue = {
   concurrency: "one_per_conversation",
 };
 
+function canonicalJson(val: unknown): string {
+  if (val === null || typeof val !== "object") {
+    return JSON.stringify(val);
+  }
+  if (Array.isArray(val)) {
+    return `[${val.map(canonicalJson).join(",")}]`;
+  }
+  const obj = val as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(",")}}`;
+}
+
 function buildState(args: {
   agent?: AgentRow;
   version: AgentVersionRow | null;
@@ -197,7 +209,9 @@ function buildState(args: {
     // `null` gravado = a versão usa a chave da instalação. Sem esta tradução,
     // reabrir o agente mostraria o campo em branco e pediria para escolher de novo.
     credential_id: version
-      ? (version.credential_id ?? CHAVE_DA_INSTALACAO)
+      ? (version.credential_id && version.credential_id.trim() !== ""
+          ? version.credential_id
+          : (temChaveInstalacao ? CHAVE_DA_INSTALACAO : (version.credential_id ?? "")))
       : (temChaveInstalacao ? CHAVE_DA_INSTALACAO : ""),
     channel_session_id: version?.channel_session_id ?? "",
     system_prompt:
@@ -258,7 +272,10 @@ function toVersionPayload(s: FormState) {
     provider: s.provider,
     model: s.model,
     // O token é da TELA; o contrato da versão é `null` = chave da instalação.
-    credential_id: s.credential_id === CHAVE_DA_INSTALACAO ? null : s.credential_id,
+    credential_id:
+      s.credential_id === CHAVE_DA_INSTALACAO || !s.credential_id
+        ? null
+        : s.credential_id,
     tool_ids: s.tool_ids,
     trigger_config: s.trigger_config,
     channel_session_id: s.channel_session_id,
@@ -309,6 +326,23 @@ export function AgentForm(props: Props) {
     });
   }, [isEdit, props]);
 
+  const initialDraft = props.mode === "edit" ? props.draft : null;
+  const [savedSnapshot, setSavedSnapshot] = React.useState<FormState | null>(null);
+  const [savedDraft, setSavedDraft] = React.useState<AgentVersionRow | null>(initialDraft);
+
+  React.useEffect(() => {
+    if (props.mode === "edit" && props.draft) {
+      setSavedDraft(props.draft);
+    }
+  }, [props]);
+
+  React.useEffect(() => {
+    setSavedSnapshot(null);
+  }, [props]);
+
+  const activeBaseline = savedSnapshot ?? baseline;
+  const currentDraft = savedDraft ?? (props.mode === "edit" ? props.draft : null);
+
   const [form, setForm] = React.useState<FormState>(baseline);
   const [saving, setSaving] = React.useState(false);
   const [publishing, setPublishing] = React.useState(false);
@@ -320,7 +354,7 @@ export function AgentForm(props: Props) {
    */
   const [papel, setPapel] = React.useState<"conversa" | "operacao" | "seguranca">("conversa");
 
-  const dirty = JSON.stringify(form) !== JSON.stringify(baseline);
+  const dirty = canonicalJson(form) !== canonicalJson(activeBaseline);
 
   function patch(p: Partial<FormState>) {
     setForm((prev) => ({ ...prev, ...p }));
@@ -400,11 +434,14 @@ export function AgentForm(props: Props) {
 
   const publishBlockReason = React.useMemo(() => {
     if (!isEdit) return t("Salve o agent antes de publicar.");
-    if (!props.draft) return t("Sem rascunho para publicar.");
+    if (!currentDraft) return t("Sem rascunho para publicar.");
     if (!isValid) return t("Resolva os erros do formulário.");
     if (dirty) return t("Salve o rascunho antes de publicar.");
 
-    const usaChaveDaInstalacao = form.credential_id === CHAVE_DA_INSTALACAO;
+    const usaChaveDaInstalacao =
+      form.credential_id === CHAVE_DA_INSTALACAO ||
+      (!form.credential_id && (props.provedoresDaInstalacao ?? []).includes(form.provider));
+
     if (usaChaveDaInstalacao) {
       if (!(props.provedoresDaInstalacao ?? []).includes(form.provider)) {
         return `${t("Esta instalação não tem chave de")} ${form.provider}. ${t("Escolha outra empresa de IA ou cadastre uma chave.")}`;
@@ -421,7 +458,8 @@ export function AgentForm(props: Props) {
     return null;
   }, [
     isEdit,
-    props,
+    currentDraft,
+    props.provedoresDaInstalacao,
     isValid,
     dirty,
     form.credential_id,
@@ -461,6 +499,45 @@ export function AgentForm(props: Props) {
           toast.error(res.message ?? `${t("Erro")}: ${res.error}`);
           return;
         }
+        setSavedSnapshot(form);
+        const fallbackVersion = props.draft ?? props.published ?? props.base;
+        const updatedDraft: AgentVersionRow = {
+          ...(fallbackVersion ?? {}),
+          id: res.data!.version_id,
+          agent_id: props.agent.id,
+          organization_id: fallbackVersion?.organization_id ?? "",
+          version_number: res.data!.version_number,
+          status: "draft",
+          provider: form.provider,
+          model: form.model,
+          credential_id: (form.credential_id === CHAVE_DA_INSTALACAO ? "" : form.credential_id) as unknown as string,
+          channel_session_id: form.channel_session_id,
+          system_prompt: form.system_prompt,
+          tool_ids: form.tool_ids,
+          trigger_config: form.trigger_config as unknown as Record<string, unknown>,
+          max_steps: form.max_steps,
+          token_budget: form.token_budget,
+          cost_budget_cents: form.cost_budget_cents,
+          history_message_window: form.history_message_window,
+          history_token_window: form.history_token_window,
+          handoff_keywords: form.handoff_keywords,
+          handoff_tool_enabled: form.handoff_tool_enabled,
+          cases_enabled: form.cases_enabled,
+          split_messages: form.split_messages,
+          split_max_chars: form.split_max_chars,
+          followup: form.followup,
+          operator_enabled: form.operator_enabled,
+          operator_model: form.operator_model.trim() === "" ? null : form.operator_model.trim(),
+          operator_tool_ids: form.operator_tool_ids,
+          pipeline_ids: form.pipeline_ids,
+          knowledge_source_ids: form.knowledge_source_ids,
+          published_at: null,
+          superseded_at: null,
+          created_at: props.draft?.created_at ?? new Date().toISOString(),
+          created_by: props.draft?.created_by ?? null,
+        } as unknown as AgentVersionRow;
+        setSavedDraft(updatedDraft);
+
         toast.success(
           `${t("Rascunho")} v${res.data!.version_number} ${t("salvo.")} ${t("Publique para ativar no WhatsApp.")}`,
         );
@@ -491,15 +568,15 @@ export function AgentForm(props: Props) {
   }
 
   async function handlePublish() {
-    if (!isEdit || !props.draft) return;
+    if (props.mode !== "edit" || !currentDraft) return;
     setPublishing(true);
     try {
-      const res = await publishAgentAction(props.agent.id, props.draft.id);
+      const res = await publishAgentAction(props.agent.id, currentDraft.id);
       if (!res.ok) {
         toast.error(`${t("Falha ao publicar:")} ${res.error}`);
         return;
       }
-      toast.success(`v${props.draft.version_number} ${t("publicada e ativa.")}`);
+      toast.success(`v${currentDraft.version_number} ${t("publicada e ativa.")}`);
       setConfirmOpen(false);
       router.refresh();
     } finally {
@@ -508,7 +585,7 @@ export function AgentForm(props: Props) {
   }
 
   function handleReset() {
-    setForm(baseline);
+    setForm(activeBaseline);
   }
 
   const disabled = readOnly || saving || publishing;
@@ -517,7 +594,7 @@ export function AgentForm(props: Props) {
   const statusBadge = (() => {
     if (!isEdit) return <Badge variant="secondary">{t("Novo")}</Badge>;
     const pubN = props.published?.version_number;
-    const draftN = props.draft?.version_number;
+    const draftN = currentDraft?.version_number;
     if (pubN && draftN) {
       return (
         <Badge variant="secondary">
@@ -596,8 +673,8 @@ export function AgentForm(props: Props) {
               >
                 {publishing
                   ? t("Publicando…")
-                  : props.draft
-                    ? `${t("Publicar v")}${props.draft.version_number}`
+                  : currentDraft
+                    ? `${t("Publicar v")}${currentDraft.version_number}`
                     : t("Publicar")}
               </Button>
             </span>
@@ -1132,11 +1209,11 @@ export function AgentForm(props: Props) {
       </div>
 
       {/* Publish dialog */}
-      {isEdit && props.draft ? (
+      {props.mode === "edit" && currentDraft ? (
         <PublishConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          draft={props.draft}
+          draft={currentDraft}
           published={props.published}
           onConfirm={handlePublish}
           isPending={publishing}
