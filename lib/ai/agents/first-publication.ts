@@ -2,7 +2,7 @@ import { listSelectableChannels, type SelectableChannel } from "@/lib/channels/s
 import { createAdminClient } from "@/lib/supabase/admin";
 import { capacidadesPadraoDoOnboarding } from "./capacidades-padrao";
 import { escolherModeloDoProvedor } from "./escolher-modelo";
-import { chaveDePlataforma } from "@/lib/ai/runtime/agent";
+import { chaveDePlataforma, obterChaveDePlataforma } from "@/lib/ai/runtime/agent";
 import { publishAgentVersion } from "./publish";
 interface AgenteDoOnboarding {
   id: string;
@@ -177,7 +177,7 @@ export async function publishFirstVersion(
   const credentialId = selection
     ? selection.credentialId
     : ((credencial?.id as string | undefined) ?? null);
-  if (!credentialId && !chaveDePlataforma(provider)) {
+  if (!credentialId && !(await obterChaveDePlataforma(provider))) {
     return { published: false, reason: "sem_chave", provider };
   }
 

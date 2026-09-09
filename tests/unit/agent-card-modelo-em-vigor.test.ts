@@ -31,7 +31,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { modeloEmVigor } from "@/app/app/ai/agents/_components/AgentCard";
+import { modeloDoRascunho, modeloEmVigor } from "@/app/app/ai/agents/_components/AgentCard";
+import { escolherVersoesDaTela } from "@/lib/ai/agents/versoes-da-tela";
 import type { AgentRow } from "@/hooks/ai/useAgent";
 
 function agente(over: Partial<AgentRow>): AgentRow {
@@ -80,5 +81,55 @@ describe("modelo mostrado no cartão do agente", () => {
 
   it("agente sem modelo nenhum não inventa um", () => {
     expect(modeloEmVigor(agente({ model: "" }))).toBe("—");
+  });
+
+  it("extrai e formata o modelo do rascunho corretamente", () => {
+    expect(modeloDoRascunho({ provider: "openrouter", model: "openai/gpt-4o" })).toBe(
+      "openrouter · openai/gpt-4o",
+    );
+    expect(modeloDoRascunho({ provider: null, model: "claude-sonnet-4-6" })).toBe(
+      "claude-sonnet-4-6",
+    );
+    expect(modeloDoRascunho(null)).toBeNull();
+    expect(modeloDoRascunho({ model: null })).toBeNull();
+  });
+
+  it("distingue a versão publicada ativa do rascunho salvo (ex: Anthropic publicada vs OpenRouter rascunho)", () => {
+    const versoes = [
+      {
+        id: "v2-id",
+        version_number: 2,
+        status: "draft",
+        provider: "openrouter",
+        model: "openai/gpt-4o",
+      },
+      {
+        id: "v1-id",
+        version_number: 1,
+        status: "published",
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-20241022",
+      },
+    ];
+
+    const a = agente({
+      published_version_id: "v1-id",
+      versao_publicada: {
+        version_number: 1,
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-20241022",
+      },
+      versoes,
+    });
+
+    const { published, draft } = escolherVersoesDaTela(a.versoes!, a.published_version_id);
+
+    // O modelo no ar continua sendo a v1 (Anthropic)
+    expect(modeloEmVigor(a)).toBe("anthropic · claude-3-5-sonnet-20241022");
+    expect(published?.version_number).toBe(1);
+
+    // O rascunho pendente é a v2 (OpenRouter)
+    expect(draft?.version_number).toBe(2);
+    expect(modeloDoRascunho(draft)).toBe("openrouter · openai/gpt-4o");
   });
 });

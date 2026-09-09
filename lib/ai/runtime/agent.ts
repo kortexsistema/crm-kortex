@@ -34,6 +34,8 @@ import {
   OPENROUTER_ENDPOINT,
 } from "@/lib/agent-engine/edge/llm/providers";
 import { CredentialUnavailableError, loadCredential } from "@/lib/ai/credentials";
+import { obterCredencialDecifradaDaPlataforma } from "@/lib/ai/credenciais/plataforma";
+import type { Provider } from "@/lib/ai/provider-validators";
 import { decidirElegibilidadeDaConversaViaSupabase } from "@/lib/ai/elegibilidade/consulta-supabase";
 import { ttlDaAutorizacaoMs } from "@/lib/ai/elegibilidade/gate";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -155,12 +157,37 @@ function buildSentinelRegex(keywords: string[]): RegExp | null {
  * lá não existe faria o ensaio passar e a mensagem real falhar.
  */
 export function chaveDePlataforma(provider: string): string | null {
-  const nome = { anthropic: "ANTHROPIC_API_KEY", openai: "OPENAI_API_KEY", openrouter: "OPENROUTER_API_KEY" }[
-    provider
-  ];
-  if (!nome) return null;
-  const v = (process.env[nome] ?? "").trim();
-  return v === "" ? null : v;
+  const nome: Record<string, string> = {
+    anthropic: "ANTHROPIC_API_KEY",
+    openai: "OPENAI_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+    google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  };
+  const envVar = nome[provider];
+  if (!envVar) return null;
+  const v = (process.env[envVar] ?? "").trim();
+  if (v !== "") return v;
+  if (provider === "google") {
+    const gemini = (process.env.GEMINI_API_KEY ?? "").trim();
+    if (gemini !== "") return gemini;
+  }
+  return null;
+}
+
+/**
+ * Obtém a chave de plataforma ativa para o provedor.
+ * Precedência:
+ * 1. Banco (platform_ai_credentials configurada centralmente via /admin/ia)
+ * 2. Ambiente (.env como piso de rollback ou instalação direta)
+ */
+export async function obterChaveDePlataforma(provider: string): Promise<string | null> {
+  try {
+    const plat = await obterCredencialDecifradaDaPlataforma(provider as Provider);
+    if (plat?.apiKey) return plat.apiKey;
+  } catch {
+    // Degrada silenciosamente para o ambiente em caso de falha de conexão/tabela
+  }
+  return chaveDePlataforma(provider);
 }
 
 export function buildModel(provider: string, apiKey: string, modelId: string): LanguageModel {
@@ -311,7 +338,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         return await failRun(run, `credential_${reason}`, "credential unavailable", startedAt);
       }
     } else {
-      const daInstalacao = chaveDePlataforma(version.provider);
+      const daInstalacao = await obterChaveDePlataforma(version.provider);
       if (!daInstalacao) {
         return await failRun(
           run,

@@ -5,7 +5,7 @@
  * Returns a discriminated result so the caller maps validation errors to 422
  * with a stable error code, and unknown errors to 500.
  */
-import { chaveDePlataforma } from "@/lib/ai/runtime/agent";
+import { chaveDePlataforma, obterChaveDePlataforma } from "@/lib/ai/runtime/agent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PUBLISH_ERROR_CODES, type PublishErrorCode } from "./validation";
 
@@ -46,7 +46,7 @@ export async function publishAgentVersion(
   if (readError || !version)
     return { ok: false, code: "version_not_found", message: "version_not_found" };
   const platform = version.credential_id === null;
-  if (platform && !chaveDePlataforma(version.provider))
+  if (platform && !(await obterChaveDePlataforma(version.provider)))
     return { ok: false, code: "credential_missing", message: "credential_missing" };
   const { data, error } = await admin.rpc("fn_publish_ai_agent_version", {
     p_org_id: params.orgId,

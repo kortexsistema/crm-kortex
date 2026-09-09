@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mensagemDoEscopo, validarEscopoDaVersao } from "@/lib/ai/agents/escopo";
 import { versionCreateSchema } from "@/lib/ai/agents/validation";
+import { obterChaveDePlataforma } from "@/lib/ai/runtime/agent";
 import { lerAmbiente } from "@/lib/instalacao/ambiente";
 import { traduzir } from "@/lib/i18n/dicionario";
 
@@ -117,10 +118,15 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     // publicada para morrer em toda mensagem — e o dono só descobriria com o
     // primeiro cliente. O schema valida FORMA; quem conhece o ambiente do
     // servidor é esta rota.
-    if (v.credential_id === null && lerAmbiente().chavesDeProvedor[v.provider] !== true) {
+    const temChaveNaPlataforma = Boolean(await obterChaveDePlataforma(v.provider));
+    if (
+      v.credential_id === null &&
+      !temChaveNaPlataforma &&
+      lerAmbiente().chavesDeProvedor[v.provider] !== true
+    ) {
       return fail(
         "credential_required",
-        `Esta instalação não tem chave de ${v.provider} no ambiente. Cadastre uma chave em IA › Credenciais ou escolha outra empresa de inteligência artificial.`,
+        `Esta instalação não tem chave de ${v.provider} no ambiente ou na plataforma. Cadastre uma chave em IA › Credenciais ou escolha outra empresa de inteligência artificial.`,
         422,
         { requestId },
       );

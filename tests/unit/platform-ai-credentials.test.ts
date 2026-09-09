@@ -6,6 +6,7 @@ import {
   obterCredencialDecifradaDaPlataforma,
   plataformaTemIaConfigurada,
 } from "@/lib/ai/credenciais/plataforma";
+import { chaveDePlataforma, obterChaveDePlataforma } from "@/lib/ai/runtime/agent";
 
 let mockRows: unknown[] = [];
 let mockError: unknown = null;
@@ -123,5 +124,62 @@ describe("platform_ai_credentials — Resolução de credenciais centrais da pla
     // Provedor inexistente ou desativado devolve null
     const inexistente = await obterCredencialDecifradaDaPlataforma("anthropic");
     expect(inexistente).toBeNull();
+  });
+
+  it("obterChaveDePlataforma prioriza platform_ai_credentials e faz fallback para env", async () => {
+    mockRows = [
+      {
+        provider: "anthropic",
+        api_key_encrypted: "enc",
+        api_key_iv: "iv",
+        api_key_tag: "tag",
+        api_key_last4: "8888",
+        models_available: [],
+        validated_at: "2026-09-08T12:00:00Z",
+        validation_error: null,
+        is_active: true,
+        updated_at: "2026-09-08T12:00:00Z",
+        updated_by: null,
+      },
+    ];
+    invalidarCacheCredenciaisPlataforma();
+
+    // Com credencial na tabela, retorna ela
+    const chave = await obterChaveDePlataforma("anthropic");
+    expect(chave).toBe("decrypted-test-key-1234");
+
+    // Provedor sem registro na tabela cai no fallback do env
+    const originalEnv = process.env.OPENAI_API_KEY;
+    try {
+      process.env.OPENAI_API_KEY = "sk-env-test-key";
+      const chaveEnv = await obterChaveDePlataforma("openai");
+      expect(chaveEnv).toBe("sk-env-test-key");
+    } finally {
+      if (originalEnv !== undefined) process.env.OPENAI_API_KEY = originalEnv;
+      else delete process.env.OPENAI_API_KEY;
+    }
+  });
+
+  it("chaveDePlataforma resolve variáveis de ambiente inclusive para google", () => {
+    const origGoogle = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const origGemini = process.env.GEMINI_API_KEY;
+    try {
+      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      delete process.env.GEMINI_API_KEY;
+
+      expect(chaveDePlataforma("google")).toBeNull();
+
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY = "goog-key-1";
+      expect(chaveDePlataforma("google")).toBe("goog-key-1");
+
+      delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      process.env.GEMINI_API_KEY = "gemini-key-2";
+      expect(chaveDePlataforma("google")).toBe("gemini-key-2");
+    } finally {
+      if (origGoogle !== undefined) process.env.GOOGLE_GENERATIVE_AI_API_KEY = origGoogle;
+      else delete process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+      if (origGemini !== undefined) process.env.GEMINI_API_KEY = origGemini;
+      else delete process.env.GEMINI_API_KEY;
+    }
   });
 });

@@ -30,7 +30,18 @@ export interface AgentRow {
    * tela só tinha `ai_agents.model`, que para `mcp_agent` é o valor do cadastro
    * e nunca é atualizado ao publicar.
    */
-  versao_publicada?: { provider: string; model: string } | null;
+  versao_publicada?: { version_number?: number; provider: string; model: string } | null;
+  /**
+   * Resumo de versões associadas ao agente para que a listagem possa identificar
+   * rascunhos vigentes e alertar quando houver alterações pendentes de publicação.
+   */
+  versoes?: Array<{
+    id: string;
+    version_number: number;
+    status: string;
+    provider?: string | null;
+    model?: string | null;
+  }> | null;
   archived_at?: string | null;
   created_at: string;
   updated_at: string;

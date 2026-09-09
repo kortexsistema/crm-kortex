@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  */
 const AGENT_COLUMNS =
   "id, organization_id, name, description, model, system_prompt, is_active, is_default, kind, priority, published_version_id, paused_at, operation_mode, operation_revision, archived_at, config, guardrails, active_kb_version_id, created_at, updated_at, " +
-  "versao_publicada:ai_agent_versions!ai_agents_published_version_id_fkey(provider, model)";
+  "versao_publicada:ai_agent_versions!ai_agents_published_version_id_fkey(version_number, provider, model), " +
+  "versoes:ai_agent_versions!ai_agent_versions_agent_id_fkey(id, version_number, status, provider, model)";
 
 export default async function AgentsListPage() {
   const user = await requireAuth();

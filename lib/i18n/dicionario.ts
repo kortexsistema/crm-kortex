@@ -37,6 +37,15 @@ import type { Idioma } from "./idiomas";
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
 
 export const DICIONARIO: Traducoes = {
+  "No ar:": { es: "En vivo:" },
+  "Revisar rascunho": { es: "Revisar borrador" },
+  "(não publicado)": { es: "(no publicado)" },
+  "Rascunho salvo com alterações pendentes de publicação.": {
+    es: "Borrador guardado con cambios pendientes de publicación.",
+  },
+  "Publique para ativar no WhatsApp.": {
+    es: "Publica para activarlo en WhatsApp.",
+  },
   "números de teste autorizados": { es: "números de prueba autorizados" },
   "1 número de teste autorizado": { es: "1 número de prueba autorizado" },
   "Nenhum número autorizado — a IA não responde ninguém neste canal.": {

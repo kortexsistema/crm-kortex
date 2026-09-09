@@ -13,7 +13,7 @@ import { generateText } from "ai";
 
 import { audit } from "@/lib/audit";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buildModel, chaveDePlataforma } from "@/lib/ai/runtime/agent";
+import { buildModel, chaveDePlataforma, obterChaveDePlataforma } from "@/lib/ai/runtime/agent";
 import { loadCredential } from "@/lib/ai/credentials";
 import { slugDeNome } from "@/lib/leads/stage-editing";
 import {
@@ -81,7 +81,7 @@ async function cerebroDoFuncionario(
     }
   }
 
-  const daInstalacao = chaveDePlataforma(provider);
+  const daInstalacao = await obterChaveDePlataforma(provider);
   if (!daInstalacao) return { erro: `esta instalação não tem chave de ${provider}` };
   return { provider, model, apiKey: daInstalacao };
 }

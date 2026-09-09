@@ -183,17 +183,22 @@ const DEFAULT_TRIGGER: TriggerValue = {
 function buildState(args: {
   agent?: AgentRow;
   version: AgentVersionRow | null;
+  provedoresDaInstalacao?: string[];
 }): FormState {
-  const { agent, version } = args;
+  const { agent, version, provedoresDaInstalacao = [] } = args;
+  const provider = (version?.provider as Provider) ?? "anthropic";
+  const temChaveInstalacao = provedoresDaInstalacao.includes(provider);
   return {
     name: agent?.name ?? "",
     description: agent?.description ?? "",
     priority: agent?.priority ?? 0,
-    provider: (version?.provider as Provider) ?? "anthropic",
+    provider,
     model: version?.model ?? "",
     // `null` gravado = a versão usa a chave da instalação. Sem esta tradução,
     // reabrir o agente mostraria o campo em branco e pediria para escolher de novo.
-    credential_id: version ? (version.credential_id ?? CHAVE_DA_INSTALACAO) : "",
+    credential_id: version
+      ? (version.credential_id ?? CHAVE_DA_INSTALACAO)
+      : (temChaveInstalacao ? CHAVE_DA_INSTALACAO : ""),
     channel_session_id: version?.channel_session_id ?? "",
     system_prompt:
       version?.system_prompt ??
@@ -292,9 +297,16 @@ export function AgentForm(props: Props) {
       // O fallback existe para chamadores que ainda não a passam; sem ele, um
       // agente pausado abriria no texto padrão e o prompt "sumiria".
       const ref = props.base ?? props.draft ?? props.published;
-      return buildState({ agent: props.agent, version: ref });
+      return buildState({
+        agent: props.agent,
+        version: ref,
+        provedoresDaInstalacao: props.provedoresDaInstalacao,
+      });
     }
-    return buildState({ version: null });
+    return buildState({
+      version: null,
+      provedoresDaInstalacao: props.provedoresDaInstalacao,
+    });
   }, [isEdit, props]);
 
   const [form, setForm] = React.useState<FormState>(baseline);
@@ -315,8 +327,14 @@ export function AgentForm(props: Props) {
   }
 
   // Quando provider muda, limpa credential e modelo (eles dependem do provider).
+  // Se a instalação tiver chave para o novo provider, já preenche com a chave da instalação.
   function changeProvider(p: Provider) {
-    patch({ provider: p, credential_id: "", model: "" });
+    const temChaveInstalacao = (props.provedoresDaInstalacao ?? []).includes(p);
+    patch({
+      provider: p,
+      credential_id: temChaveInstalacao ? CHAVE_DA_INSTALACAO : "",
+      model: "",
+    });
   }
 
   const cred = findCredential(props.credentials, form.credential_id);
@@ -385,14 +403,34 @@ export function AgentForm(props: Props) {
     if (!props.draft) return t("Sem rascunho para publicar.");
     if (!isValid) return t("Resolva os erros do formulário.");
     if (dirty) return t("Salve o rascunho antes de publicar.");
-    if (!cred) return t("Escolha a chave de acesso da empresa de inteligência artificial.");
-    if (credSt !== "validated")
-      return `${t("Credencial")} ${form.provider} ${credSt === "invalid" ? t("inválida") : t("ainda não validada")}.`;
+
+    const usaChaveDaInstalacao = form.credential_id === CHAVE_DA_INSTALACAO;
+    if (usaChaveDaInstalacao) {
+      if (!(props.provedoresDaInstalacao ?? []).includes(form.provider)) {
+        return `${t("Esta instalação não tem chave de")} ${form.provider}. ${t("Escolha outra empresa de IA ou cadastre uma chave.")}`;
+      }
+    } else {
+      if (!cred) return t("Escolha a chave de acesso da empresa de inteligência artificial.");
+      if (credSt !== "validated")
+        return `${t("Credencial")} ${form.provider} ${credSt === "invalid" ? t("inválida") : t("ainda não validada")}.`;
+    }
+
     if (!channelSession) return t("Escolha por qual número de WhatsApp ele atende.");
     if (channelSession.status !== "working" && channelSession.status !== "WORKING")
       return `${t("Número WhatsApp não está conectado (status:")} ${channelSession.status}).`;
     return null;
-  }, [isEdit, props, isValid, dirty, cred, credSt, form.provider, channelSession, t]);
+  }, [
+    isEdit,
+    props,
+    isValid,
+    dirty,
+    form.credential_id,
+    form.provider,
+    cred,
+    credSt,
+    channelSession,
+    t,
+  ]);
 
   // ---------------------------------------------------------------------
   // Handlers
@@ -423,7 +461,9 @@ export function AgentForm(props: Props) {
           toast.error(res.message ?? `${t("Erro")}: ${res.error}`);
           return;
         }
-        toast.success(`${t("Rascunho")} v${res.data!.version_number} ${t("salvo.")}`);
+        toast.success(
+          `${t("Rascunho")} v${res.data!.version_number} ${t("salvo.")} ${t("Publique para ativar no WhatsApp.")}`,
+        );
         router.refresh();
       } else {
         const payload = {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useT } from "@/hooks/i18n/useT";
 import type { AgentRow } from "@/hooks/ai/useAgent";
+import { escolherVersoesDaTela } from "@/lib/ai/agents/versoes-da-tela";
 import { AgentStatusBadge, deriveAgentStatus } from "./AgentStatusBadge";
 import { AgentRowMenu } from "./AgentRowMenu";
 
@@ -52,14 +53,38 @@ export function modeloEmVigor(agent: AgentRow): string {
   return `${provedor} · ${resto.join("/")}`;
 }
 
+export function modeloDoRascunho(
+  draft?: { provider?: string | null; model?: string | null } | null,
+): string | null {
+  if (!draft?.model) return null;
+  return draft.provider ? `${draft.provider} · ${draft.model}` : draft.model;
+}
+
 export function AgentCard({ agent, canWrite }: Props) {
   const t = useT();
   const status = deriveAgentStatus(agent);
 
+  const versoesResolvidas = escolherVersoesDaTela(
+    agent.versoes ?? [],
+    agent.published_version_id ?? null,
+  );
+  const publishedVersion = versoesResolvidas.published;
+  const draftVersion = versoesResolvidas.draft;
+
+  // Se o agente tem versão publicada em vigor E um rascunho vigente mais novo
+  const temPublicadaERascunho =
+    status === "published" &&
+    draftVersion !== null &&
+    (publishedVersion !== null || Boolean(agent.published_version_id));
+
+  const pubVersionNumber =
+    publishedVersion?.version_number ?? agent.versao_publicada?.version_number;
+  const modeloRascunho = modeloDoRascunho(draftVersion);
+
   return (
     <Card className="flex h-full flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-0.5">
           <h3 className="truncate font-medium" title={agent.name}>
             {agent.name}
           </h3>
@@ -71,8 +96,20 @@ export function AgentCard({ agent, canWrite }: Props) {
                 : t("Modelo do cadastro; nenhuma versão publicada ainda.")
             }
           >
+            {origemDoModelo(agent) === "versao_publicada" && (
+              <span className="font-medium text-foreground">{t("No ar:")} </span>
+            )}
             {modeloEmVigor(agent)}
           </p>
+          {draftVersion && modeloRascunho && (
+            <p
+              className="truncate text-xs font-medium text-amber-600 dark:text-amber-400"
+              title={t("Rascunho salvo com alterações pendentes de publicação.")}
+            >
+              <span className="opacity-90">{t("Rascunho")} v{draftVersion.version_number}:</span>{" "}
+              {modeloRascunho} {t("(não publicado)")}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {agent.is_default && (
@@ -80,7 +117,21 @@ export function AgentCard({ agent, canWrite }: Props) {
               {t("default")}
             </Badge>
           )}
-          <AgentStatusBadge status={status} />
+          {temPublicadaERascunho ? (
+            <div className="flex items-center gap-1">
+              <Badge variant="default" className="text-xs">
+                {t("Publicado")} {pubVersionNumber ? `v${pubVersionNumber}` : ""}
+              </Badge>
+              <Badge
+                variant="secondary"
+                className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium"
+              >
+                {t("Rascunho")} v{draftVersion.version_number}
+              </Badge>
+            </div>
+          ) : (
+            <AgentStatusBadge status={status} />
+          )}
           {canWrite && <AgentRowMenu agent={agent} />}
         </div>
       </div>
@@ -100,7 +151,11 @@ export function AgentCard({ agent, canWrite }: Props) {
       <div className="mt-auto pt-2">
         <Link href={`/app/ai/agents/${agent.id}`}>
           <Button variant="outline" size="sm" className="w-full">
-            {canWrite ? t("Editar") : t("Visualizar")}
+            {canWrite
+              ? temPublicadaERascunho
+                ? t("Revisar rascunho")
+                : t("Editar")
+              : t("Visualizar")}
           </Button>
         </Link>
       </div>
