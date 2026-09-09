@@ -69,9 +69,9 @@ export function AdminShell({ userEmail, children }: AdminShellProps) {
 
   return (
     <TooltipProvider>
-      <div className="flex min-h-screen w-full flex-col bg-background">
+      <div className="flex h-screen w-full flex-col overflow-hidden bg-background">
         <PlatformModeBanner />
-        <div className="flex flex-1">
+        <div className="flex flex-1 overflow-hidden">
           <AdminSidebar userEmail={userEmail} />
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetContent side="left" className="w-72 max-w-[85vw] gap-0 p-0 lg:hidden">

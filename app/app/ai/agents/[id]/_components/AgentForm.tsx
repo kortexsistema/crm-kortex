@@ -39,7 +39,6 @@ import { TETO_TOOLS_POR_AGENTE } from "@/lib/mcp/tools/selecao-por-pacote";
 import { PROVEDORES } from "@/lib/ai/pontos/provedores";
 
 import { ModelPicker, useModelMeta } from "./ModelPicker";
-import { CHAVE_DA_INSTALACAO, CredentialPicker, STATUS_LABEL, findCredential } from "./CredentialPicker";
 import { rotuloDoEstadoDoCanal } from "@/lib/channels/estado";
 import { ToolPicker } from "./ToolPicker";
 import { TriggerEditor, type TriggerValue } from "./TriggerEditor";
@@ -206,13 +205,7 @@ function buildState(args: {
     priority: agent?.priority ?? 0,
     provider,
     model: version?.model ?? "",
-    // `null` gravado = a versão usa a chave da instalação. Sem esta tradução,
-    // reabrir o agente mostraria o campo em branco e pediria para escolher de novo.
-    credential_id: version
-      ? (version.credential_id && version.credential_id.trim() !== ""
-          ? version.credential_id
-          : (temChaveInstalacao ? CHAVE_DA_INSTALACAO : (version.credential_id ?? "")))
-      : (temChaveInstalacao ? CHAVE_DA_INSTALACAO : ""),
+    credential_id: "",
     channel_session_id: version?.channel_session_id ?? "",
     system_prompt:
       version?.system_prompt ??
@@ -271,11 +264,7 @@ function toVersionPayload(s: FormState) {
     system_prompt: s.system_prompt,
     provider: s.provider,
     model: s.model,
-    // O token é da TELA; o contrato da versão é `null` = chave da instalação.
-    credential_id:
-      s.credential_id === CHAVE_DA_INSTALACAO || !s.credential_id
-        ? null
-        : s.credential_id,
+    credential_id: null,
     tool_ids: s.tool_ids,
     trigger_config: s.trigger_config,
     channel_session_id: s.channel_session_id,
@@ -360,20 +349,16 @@ export function AgentForm(props: Props) {
     setForm((prev) => ({ ...prev, ...p }));
   }
 
-  // Quando provider muda, limpa credential e modelo (eles dependem do provider).
-  // Se a instalação tiver chave para o novo provider, já preenche com a chave da instalação.
   function changeProvider(p: Provider) {
-    const temChaveInstalacao = (props.provedoresDaInstalacao ?? []).includes(p);
     patch({
       provider: p,
-      credential_id: temChaveInstalacao ? CHAVE_DA_INSTALACAO : "",
+      credential_id: "",
       model: "",
     });
   }
 
-  const cred = findCredential(props.credentials, form.credential_id);
-  const credSt = cred ? credentialStatus(cred) : null;
   const channelSession = props.channelSessions.find((c) => c.id === form.channel_session_id);
+
   const modelMeta = useModelMeta(form.provider, form.model);
 
   // ---------------------------------------------------------------------
@@ -403,16 +388,6 @@ export function AgentForm(props: Props) {
         `${t("As instruções têm")} ${tamanhoDoPrompt.toLocaleString("pt-BR")} ${t("caracteres, e o máximo é 20.000. Corte")} ` +
         `${(tamanhoDoPrompt - 20000).toLocaleString("pt-BR")} ${t("para conseguir salvar.")}`;
     if (!form.model) errors.model = t("Escolha o modelo de inteligência artificial.");
-    if (!form.credential_id)
-      errors.credential_id = t("Escolha a chave de acesso da empresa de inteligência artificial.");
-    // Escolher "a chave desta instalação" para um provedor que a instalação NÃO
-    // tem seria publicar um agente que morre em toda mensagem. A mesma recusa
-    // existe no servidor (rota de versões); aqui ela chega antes do clique.
-    if (
-      form.credential_id === CHAVE_DA_INSTALACAO &&
-      !(props.provedoresDaInstalacao ?? []).includes(form.provider)
-    )
-      errors.credential_id = `${t("Esta instalação não tem chave de")} ${form.provider}. ${t("Escolha outra empresa de IA ou cadastre uma chave.")}`;
     if (!form.channel_session_id)
       errors.channel_session_id = t("Escolha por qual número de WhatsApp ele atende.");
     if (form.tool_ids.length > TETO_TOOLS_POR_AGENTE)
@@ -438,20 +413,6 @@ export function AgentForm(props: Props) {
     if (!isValid) return t("Resolva os erros do formulário.");
     if (dirty) return t("Salve o rascunho antes de publicar.");
 
-    const usaChaveDaInstalacao =
-      form.credential_id === CHAVE_DA_INSTALACAO ||
-      (!form.credential_id && (props.provedoresDaInstalacao ?? []).includes(form.provider));
-
-    if (usaChaveDaInstalacao) {
-      if (!(props.provedoresDaInstalacao ?? []).includes(form.provider)) {
-        return `${t("Esta instalação não tem chave de")} ${form.provider}. ${t("Escolha outra empresa de IA ou cadastre uma chave.")}`;
-      }
-    } else {
-      if (!cred) return t("Escolha a chave de acesso da empresa de inteligência artificial.");
-      if (credSt !== "validated")
-        return `${t("Credencial")} ${form.provider} ${credSt === "invalid" ? t("inválida") : t("ainda não validada")}.`;
-    }
-
     if (!channelSession) return t("Escolha por qual número de WhatsApp ele atende.");
     if (channelSession.status !== "working" && channelSession.status !== "WORKING")
       return `${t("Número WhatsApp não está conectado (status:")} ${channelSession.status}).`;
@@ -464,8 +425,6 @@ export function AgentForm(props: Props) {
     dirty,
     form.credential_id,
     form.provider,
-    cred,
-    credSt,
     channelSession,
     t,
   ]);
@@ -510,7 +469,7 @@ export function AgentForm(props: Props) {
           status: "draft",
           provider: form.provider,
           model: form.model,
-          credential_id: (form.credential_id === CHAVE_DA_INSTALACAO ? "" : form.credential_id) as unknown as string,
+          credential_id: null as any,
           channel_session_id: form.channel_session_id,
           system_prompt: form.system_prompt,
           tool_ids: form.tool_ids,
@@ -846,25 +805,6 @@ export function AgentForm(props: Props) {
             />
             {validation.model ? (
               <p className="text-xs text-destructive">{validation.model}</p>
-            ) : null}
-
-            <CredentialPicker
-              provider={form.provider}
-              credentials={props.credentials}
-              value={form.credential_id}
-              onChange={(id) => patch({ credential_id: id })}
-              disabled={disabled}
-              id="credential_id"
-              instalacaoTemChave={(props.provedoresDaInstalacao ?? []).includes(form.provider)}
-            />
-            {validation.credential_id ? (
-              <p className="text-xs text-destructive">{validation.credential_id}</p>
-            ) : null}
-            {cred && credSt && credSt !== "validated" ? (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t("Credencial selecionada está com status")} {t(STATUS_LABEL[credSt])}
-                {t(". Publish bloqueado até validar.")}
-              </p>
             ) : null}
           </Card>
 
