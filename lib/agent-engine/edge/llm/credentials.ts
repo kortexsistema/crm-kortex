@@ -87,6 +87,7 @@ export function llmEdgeConfigFromEnv(env: {
   OPENROUTER_API_KEY?: string;
   GOOGLE_GENERATIVE_AI_API_KEY?: string;
   GOOGLE_API_KEY?: string;
+  GEMINI_API_KEY?: string;
   LLM_CACHE_TTL?: string;
   AI_BUDGET_ENFORCEMENT?: string;
 }): LlmEdgeConfig {
@@ -94,7 +95,7 @@ export function llmEdgeConfigFromEnv(env: {
   if (ttl !== '5m' && ttl !== '1h') {
     throw new Error("LLM_CACHE_TTL inválido — use '5m' ou '1h' (default 1h)");
   }
-  const googleKey = env.GOOGLE_GENERATIVE_AI_API_KEY || env.GOOGLE_API_KEY;
+  const googleKey = env.GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY || env.GOOGLE_API_KEY;
   return {
     ...(env.ANTHROPIC_API_KEY ? { anthropicApiKey: env.ANTHROPIC_API_KEY } : {}),
     ...(env.OPENAI_API_KEY ? { openaiApiKey: env.OPENAI_API_KEY } : {}),
