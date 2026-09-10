@@ -413,6 +413,7 @@ export async function publishAgentAction(
     .from("event_log")
     .insert({
       organization_id: activeOrg.orgId,
+      entity_kind: "agent",
       event_type: "ai_agent.published",
       payload: {
         agent_id: result.agent_id,
@@ -613,6 +614,7 @@ export async function revertToVersionAction(
     .from("event_log")
     .insert({
       organization_id: activeOrg.orgId,
+      entity_kind: "agent",
       event_type: "ai_agent.published",
       payload: {
         agent_id: result.agent_id,
