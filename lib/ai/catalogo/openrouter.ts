@@ -115,8 +115,37 @@ export function traduzirCatalogo(modelos: readonly ModeloDaOpenRouter[]): LinhaD
   for (const m of modelos) {
     const linha = traduzirModelo(m);
     if (linha === null) continue;
+
+    const isFree =
+      linha.input_price_per_million_cents === 0 &&
+      linha.output_price_per_million_cents === 0;
+
+    if (isFree && linha.model_id !== "openrouter/free") {
+      continue;
+    }
+
     porId.set(linha.model_id, linha);
   }
+
+  // A OpenRouter possui um modelo de roteamento inteligente ("openrouter/free") que
+  // seleciona automaticamente o melhor modelo gratuito disponível. Como os modelos
+  // individuais frequentemente mudam ou falham, mantemos apenas este e o injetamos
+  // caso a API não o retorne no endpoint padrão.
+  if (!porId.has("openrouter/free")) {
+    porId.set("openrouter/free", {
+      provider: FONTE_OPENROUTER,
+      model_id: "openrouter/free",
+      display_name: "OpenRouter Free (Auto-Router)",
+      description: "Roteador inteligente da OpenRouter que seleciona automaticamente o melhor modelo gratuito disponível no momento.",
+      context_window: null,
+      input_price_per_million_cents: 0,
+      output_price_per_million_cents: 0,
+      supports_tools: true,
+      supports_vision: true,
+      source: FONTE_OPENROUTER,
+    });
+  }
+
   return [...porId.values()];
 }
 

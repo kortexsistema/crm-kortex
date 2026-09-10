@@ -124,8 +124,10 @@ describe("tradução do catálogo inteiro", () => {
       OPUS_5_FAST,
       { ...OPUS_5_FAST, name: "Versão mais recente" },
     ]);
-    expect(catalogo).toHaveLength(1);
-    expect(catalogo[0]?.display_name).toBe("Versão mais recente");
+    expect(catalogo.length).toBe(2); // Opus 5 + openrouter/free injetado
+    
+    const opus = catalogo.find(c => c.model_id === "anthropic/claude-opus-5-fast");
+    expect(opus?.display_name).toBe("Versão mais recente");
   });
 
   it("descarta as inutilizáveis sem derrubar as boas", () => {
@@ -139,16 +141,41 @@ describe("tradução do catálogo inteiro", () => {
     expect(catalogo.map((l) => l.model_id).sort()).toEqual([
       "anthropic/claude-opus-5-fast",
       "meta-llama/llama-3.3-70b-instruct",
+      "openrouter/free",
     ]);
   });
 
-  it("catálogo vazio devolve lista vazia, sem estourar", () => {
-    expect(traduzirCatalogo([])).toEqual([]);
+  it("catálogo vazio devolve apenas o openrouter/free injetado, sem estourar", () => {
+    const catalogo = traduzirCatalogo([]);
+    expect(catalogo.map(l => l.model_id)).toEqual(["openrouter/free"]);
   });
 
   it("modelo sem preço nenhum entra com null, não com zero", () => {
-    const [linha] = traduzirCatalogo([{ id: "x/y", pricing: null }]);
+    const catalogo = traduzirCatalogo([{ id: "x/y", pricing: null }]);
+    const linha = catalogo.find(l => l.model_id === "x/y");
     expect(linha?.input_price_per_million_cents).toBeNull();
     expect(linha?.output_price_per_million_cents).toBeNull();
+  });
+
+  it("descarta modelos gratuitos individuais e preserva apenas o openrouter/free", () => {
+    const catalogo = traduzirCatalogo([
+      { id: "google/gemma-7b-it:free", pricing: { prompt: "0", completion: "0" } }, // Vai sumir
+      { id: "openai/gpt-3.5-turbo", pricing: { prompt: "0.001", completion: "0.002" } }, // Fica
+      { id: "openrouter/free", pricing: { prompt: "0", completion: "0" }, name: "Free Router" }, // Fica
+    ]);
+    
+    const ids = catalogo.map(c => c.model_id).sort();
+    expect(ids).toEqual(["openai/gpt-3.5-turbo", "openrouter/free"]);
+    
+    const free = catalogo.find(c => c.model_id === "openrouter/free");
+    expect(free?.display_name).toBe("Free Router"); // Nome da origem mantido
+  });
+
+  it("mantém modelo se cobrar apenas pelo output ou input (não 100% free)", () => {
+    const catalogo = traduzirCatalogo([
+      { id: "misto/meio-gratis", pricing: { prompt: "0", completion: "0.0001" } },
+    ]);
+    const ids = catalogo.map(c => c.model_id).sort();
+    expect(ids).toEqual(["misto/meio-gratis", "openrouter/free"]);
   });
 });
