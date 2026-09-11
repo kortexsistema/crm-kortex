@@ -15,7 +15,6 @@ import { audit } from "@/lib/audit";
 import { sincronizarSaudeDaConexao } from "@/lib/channels/health";
 import { aplicarEfeitosPosEntrada } from "@/lib/channels/pos-entrada";
 import { pausarIaPorAtendimentoManual } from "@/lib/escalacao/atendimento-manual";
-import { acelerarPipelineDeEventos } from "@/lib/dev/kick-local-pipeline";
 import { canonicalPhoneBR } from "@/lib/channels/phone-variants";
 import { estamparAtribuicaoDoContato } from "@/lib/leads/atribuicao-de-anuncio";
 import { extrairAtribuicaoWaha } from "@/lib/waha/atribuicao-de-anuncio";
@@ -539,24 +538,7 @@ async function markConversation(
 /**
  * Mensagem recebida (fromMe=false). Contato = remetente (`from`).
  */
-async function mensagemIngeridaPorExternalId(
-  admin: Admin,
-  orgId: string,
-  externalId: string,
-): Promise<{ id: string; contact_id: string; body: string | null } | null> {
-  const { data, error } = await admin
-    .from("messages")
-    .select("id, contact_id, body")
-    .eq("organization_id", orgId)
-    .eq("external_id", externalId)
-    .eq("direction", "inbound")
-    .maybeSingle();
-  if (error) {
-    logger.warn("waha.ingest: dedup sem ler mensagem existente", { detail: error.message });
-    return null;
-  }
-  return data ?? null;
-}
+
 
 async function handleInbound(
   admin: Admin,
@@ -648,25 +630,13 @@ async function handleInbound(
       direcao: "inbound",
     });
     // A 1ª entrega pode ter gravado a mensagem e estourado o tempo ANTES de
-    // `aplicarEfeitosPosEntrada` — a reentrega cai aqui. Reacelerar só o
-    // pipeline (sem re-despachar o agente) destrava o match_reply.
-    const existente = await mensagemIngeridaPorExternalId(admin, session.organization_id, p.id);
-    if (existente) {
-      try {
-        await acelerarPipelineDeEventos(admin, {
-          organizationId: session.organization_id,
-          contactId: existente.contact_id,
-          messageId: existente.id,
-          texto: existente.body,
-        });
-      } catch (err) {
-        logger.warn("waha.ingest: dedup nao reacelerou pipeline", {
-          organization_id: session.organization_id,
-          external_id: p.id,
-          detail: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+    // `aplicarEfeitosPosEntrada` — a reentrega cai aqui.
+    // Agora que o Redis segura retentativas IMEDIATAS, se cairmos neste ponto
+    // significa que é uma retentativa tardia legítima do WAHA. Porém, reacelerar
+    // aqui sempre estava causando disparos duplos quando os webhooks chegavam juntos
+    // e o Redis não existia. Para preservar a estabilidade e cumprir a diretriz
+    // de barrar duplicidades, não faremos o `acelerarPipelineDeEventos()`
+    // de forma agressiva aqui na chegada bruta.
     return;
   }
 

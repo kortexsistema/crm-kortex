@@ -55,7 +55,7 @@ function getRedis(): Redis | null {
   if (!config.ok) {
     if (!_fallbackWarned) {
       console.warn(
-        `[rag-debounce] Redis ${config.reason} — using in-memory fallback (NOT safe for multi-instance)`,
+        `[redis-debounce] Redis ${config.reason} — using in-memory fallback (NOT safe for multi-instance)`,
       );
       _fallbackWarned = true;
     }
@@ -122,7 +122,7 @@ export async function acquireDebounce(key: string, ttlSec: number): Promise<bool
     return result === "OK";
   } catch (err) {
     console.warn(
-      "[rag-debounce] Redis não respondeu — seguindo SEM debounce (pode indexar duas vezes):",
+      "[redis-debounce] Redis não respondeu — seguindo SEM debounce (pode indexar duas vezes):",
       err instanceof Error ? err.message : String(err),
     );
     return true;

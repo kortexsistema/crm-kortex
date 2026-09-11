@@ -20,6 +20,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { conferirContratoWaha, lerRoteamentoWaha } from "@/lib/waha/envelope";
 import { dispatchWahaEvent } from "@/lib/waha/ingest";
 import { authenticateWahaWebhook } from "@/lib/waha/webhook-auth";
+import { acquireDebounce } from "@/lib/redis-debounce";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -133,6 +134,16 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
 
   const eventType = roteado.event ?? "unknown";
   const externalId = roteado.payload?.id ?? null;
+
+  // Trava de Idempotência no Redis (60 segundos)
+  if (externalId && eventType.startsWith("message")) {
+    const lockKey = `waha:webhook:dedup:${session.organization_id}:${externalId}`;
+    const acquired = await acquireDebounce(lockKey, 60);
+    if (!acquired) {
+      logger.info("[waha.webhook] webhook duplicado retido pelo Redis", { request_id: requestId, externalId });
+      return ok({ accepted: true, dedup: true }, { requestId });
+    }
+  }
 
   const headersJson: Record<string, string> = {};
   req.headers.forEach((value, key) => {

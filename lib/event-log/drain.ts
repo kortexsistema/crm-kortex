@@ -7,6 +7,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { dispatchEvent, getRegisteredHandlers, type EventRow } from "@/lib/event-log/dispatcher";
+import { acquireDebounce, releaseDebounce } from "@/lib/redis-debounce";
 import { logger } from "@/lib/logger";
 
 const MAX_ATTEMPTS = 5;
