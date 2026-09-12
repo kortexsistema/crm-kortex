@@ -469,7 +469,7 @@ export function AgentForm(props: Props) {
           status: "draft",
           provider: form.provider,
           model: form.model,
-          credential_id: null as any,
+          credential_id: null as unknown as string,
           channel_session_id: form.channel_session_id,
           system_prompt: form.system_prompt,
           tool_ids: form.tool_ids,

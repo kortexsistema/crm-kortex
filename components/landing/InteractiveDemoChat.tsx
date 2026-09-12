@@ -194,7 +194,7 @@ export function InteractiveDemoChat() {
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading || rateLimited}
           placeholder={rateLimited ? "Limite atingido" : "Digite sua mensagem..."}
-          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 text-sm text-zinc-200 focus:outline-none focus:border-sky-500 transition-colors disabled:opacity-50"
+          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 text-sm text-zinc-200 focus:outline-hidden focus:border-sky-500 transition-colors disabled:opacity-50"
         />
         <Button
           type="submit"

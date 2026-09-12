@@ -37,7 +37,7 @@ export const queryExternalSupabaseTool: McpToolDefinition<typeof inputShape> = {
       return { error: "Falha ao descriptografar a chave de API externa." };
     }
     
-    const url = (integration.store_metadata as any)?.supabase_url;
+    const url = (integration.store_metadata as Record<string, unknown>)?.supabase_url as string | undefined;
     if (!url) {
       return { error: "URL do Supabase ausente na configuração." };
     }

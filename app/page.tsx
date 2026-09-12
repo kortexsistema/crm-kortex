@@ -72,7 +72,7 @@ export default function HomePage() {
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3">Sem Latência</h3>
                 <p className="text-zinc-400 leading-relaxed">
-                  Respostas instantâneas integradas diretamente ao WhatsApp via WAHA, sem intermediários caros.
+                  Respostas instantâneas integradas diretamente ao seu número, sem intermediários caros.
                 </p>
               </div>
               <div className="bg-[#1a1a1a] p-8 rounded-2xl border border-zinc-800">

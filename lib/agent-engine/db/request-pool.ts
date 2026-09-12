@@ -9,11 +9,14 @@ import type pg from 'pg';
 
 import { createPool } from './pool';
 
-let _pool: pg.Pool | null = null;
+const globalForPg = globalThis as unknown as { _requestPool: pg.Pool | null };
 
 export function getRequestPool(): pg.Pool {
   const url = process.env.SUPABASE_DB_URL;
   if (!url) throw new Error('SUPABASE_DB_URL ausente — rascunho da IA indisponível');
-  if (!_pool) _pool = createPool(url);
-  return _pool;
+  
+  if (!globalForPg._requestPool) {
+    globalForPg._requestPool = createPool(url);
+  }
+  return globalForPg._requestPool;
 }

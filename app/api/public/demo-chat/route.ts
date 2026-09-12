@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     });
 
     return result.toTextStreamResponse();
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[demo-chat]", err);
     return new Response("Internal Server Error", { status: 500 });
   }

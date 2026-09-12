@@ -29,7 +29,8 @@ export async function testExternalSupabase(url: string, apiKey: string) {
     } else {
       return { ok: false, error: { message: `Erro na conexão: Status ${res.status}` } };
     }
-  } catch (error: any) {
-    return { ok: false, error: { message: `Falha de rede ao tentar conectar: ${error.message}` } };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Erro desconhecido";
+    return { ok: false, error: { message: `Falha de rede ao tentar conectar: ${msg}` } };
   }
 }

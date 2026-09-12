@@ -20,8 +20,7 @@ export class OpenAIAdapter implements AIAdapter {
     try {
       const model = this.openai(options.modelSlug);
 
-      // @ts-ignore - maxTokens might not be in LanguageModelCallOptions in this SDK version
-      const aiOptions: any = {
+      const aiOptions: Record<string, unknown> = {
         model,
         prompt,
         temperature: options.temperature,
@@ -31,9 +30,9 @@ export class OpenAIAdapter implements AIAdapter {
         aiOptions.maxTokens = options.maxTokens;
       }
 
-      const { text, usage } = await aiGenerateText(aiOptions);
+      const { text, usage } = await aiGenerateText(aiOptions as Parameters<typeof aiGenerateText>[0]);
 
-      const u = usage as any;
+      const u = usage as unknown as Record<string, number>;
       const promptTokens = u?.promptTokens ?? u?.inputTokens ?? 0;
       const completionTokens = u?.completionTokens ?? u?.outputTokens ?? 0;
       const totalTokens = u?.totalTokens ?? (promptTokens + completionTokens);
@@ -46,7 +45,7 @@ export class OpenAIAdapter implements AIAdapter {
           totalTokens,
         } : undefined
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.handleError(error);
     }
   }
@@ -63,9 +62,10 @@ export class OpenAIAdapter implements AIAdapter {
     throw new Error('analyzeDocument not implemented for OpenAI adapter yet.');
   }
 
-  private handleError(error: any): never {
-    const status = error?.statusCode ?? error?.status;
-    const message = error?.message || 'Unknown provider error';
+  private handleError(error: unknown): never {
+    const e = error as Record<string, unknown>;
+    const status = e?.statusCode ?? e?.status;
+    const message = e?.message || 'Unknown provider error';
     
     if (status === 404) {
       throw new Error(`AI Provider Route Not Found (404): ${message}`);

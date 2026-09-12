@@ -26,14 +26,17 @@ const DRAIN_MAX_ATTEMPTS = 5; // espelho de lib/event-log/drain.ts
 // Lista compartilhada com o drain do turno — ver lib/messaging/media/derivable.ts.
 
 // ponytail: singleton lazy — o drain só nos dá o admin client; resolveOrgLlmConfig
-// exige pg.Pool direto. Sem pool global no processo Next.js, então criamos um sob
-// demanda (nunca no import). `pg.Pool` só conecta na primeira query — se
-// SUPABASE_DB_URL faltar, o erro aparece ali (capturado pelo try/catch abaixo),
-// não na construção.
-let _pool: pg.Pool | null = null;
+// exige pg.Pool direto. O globalForPg preserva o pool em dev/serverless.
+// `pg.Pool` só conecta na primeira query — se
+// quebrar na importação o processo morre antes de servir a saúde do worker.
+
+const globalForPg = globalThis as unknown as { _derivePool: pg.Pool | null };
+
 function derivePool(): pg.Pool {
-  if (!_pool) _pool = createPool(process.env.SUPABASE_DB_URL ?? "");
-  return _pool;
+  if (!globalForPg._derivePool) {
+    globalForPg._derivePool = createPool(process.env.SUPABASE_DB_URL ?? "");
+  }
+  return globalForPg._derivePool;
 }
 
 interface MessageRow {

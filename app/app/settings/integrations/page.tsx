@@ -33,8 +33,8 @@ export default function IntegrationsSettingsPage() {
       } else {
         toast.error(res.error?.message || t("Erro ao salvar conexão."));
       }
-    } catch (err: any) {
-      toast.error(err.message || t("Erro ao salvar conexão."));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t("Erro ao salvar conexão."));
     } finally {
       setLoading(false);
     }
@@ -56,8 +56,8 @@ export default function IntegrationsSettingsPage() {
         setTestResult({ success: false, message: res.error?.message || "Erro" });
         toast.error(t("Falha no teste de conexão."));
       }
-    } catch (err: any) {
-      setTestResult({ success: false, message: err.message });
+    } catch (err: unknown) {
+      setTestResult({ success: false, message: err instanceof Error ? err.message : "Erro" });
       toast.error(t("Falha no teste de conexão."));
     } finally {
       setTesting(false);
