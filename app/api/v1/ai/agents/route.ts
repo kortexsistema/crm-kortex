@@ -24,6 +24,7 @@ import { mensagemDoEscopo, validarEscopoDaVersao } from "@/lib/ai/agents/escopo"
 import { agentCreateSchema } from "@/lib/ai/guardrails-schema";
 import { agentMcpCreateSchema } from "@/lib/ai/agents/validation";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { validatePlanLimit } from "@/lib/billing/plan-limits";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,11 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (!authz.ok) return authz.response;
   const t = (texto: string) => traduzir(texto, authz.user.idioma);
   const { user: authUser, org: activeOrg } = authz;
+
+  const limitCheck = await validatePlanLimit(activeOrg.orgId, "agents");
+  if (!limitCheck.allowed) {
+    return fail("plan_limit_reached", `Plano atingiu o limite máximo de agentes (${limitCheck.limit}).`, 403, { requestId });
+  }
 
   let rawBody: unknown;
   try {

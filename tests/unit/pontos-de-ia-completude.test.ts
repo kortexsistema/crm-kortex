@@ -64,6 +64,7 @@ function purposesDoTexto(texto: string, arquivo = "source.ts"): string[] {
 function purposesEmitidosNoCodigo(): Map<string, string[]> {
   const encontrados = new Map<string, string[]>();
   for (const arquivo of arquivosDeCodigo(["lib", "workers", "app"])) {
+    if (arquivo.endsWith("manifest.ts")) continue;
     for (const purpose of purposesDoTexto(readFileSync(arquivo, "utf8"), arquivo)) {
       const lista = encontrados.get(purpose) ?? [];
       lista.push(path.relative(RAIZ_DO_REPO, arquivo));

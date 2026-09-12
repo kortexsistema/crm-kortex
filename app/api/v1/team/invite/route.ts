@@ -21,6 +21,7 @@ import { ApiError } from "@/lib/api/types";
 import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { inviteMemberSchema, validateRequest } from "@/lib/schemas";
+import { validatePlanLimit } from "@/lib/billing/plan-limits";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,16 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
   }
 
+  // Validate Plan Limit for users
+  const limitCheck = await validatePlanLimit(activeOrg.orgId, "users");
+  const maxNewUsers = limitCheck.limit === "unlimited" ? Infinity : (limitCheck.limit as number) - limitCheck.currentCount;
+  
+  if (!limitCheck.allowed || maxNewUsers <= 0) {
+    return fail("plan_limit_reached", `Plano atingiu o limite máximo de usuários (${limitCheck.limit}).`, 403, { requestId });
+  }
+
+  let usersToInvite = 0;
+
   for (const inv of input.invitations) {
     const email = inv.email.trim().toLowerCase();
 
@@ -89,6 +100,13 @@ export async function POST(req: NextRequest): Promise<Response> {
       failed.push({ email, reason: "already_member" });
       continue;
     }
+
+    if (usersToInvite >= maxNewUsers) {
+      failed.push({ email, reason: "plan_limit_reached" });
+      continue;
+    }
+    
+    usersToInvite++;
 
     sent.push(
       await issueInvite({
