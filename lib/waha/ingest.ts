@@ -107,6 +107,7 @@ async function ehEcoDeEnvioNosso(
 interface Session {
   id: string;
   organization_id: string;
+  waha_session_name: string;
 }
 
 /**
@@ -671,6 +672,8 @@ async function handleInbound(
     nomeDoContato: notifyNameOf(p),
     requestId,
     origem: "waha_webhook",
+    wahaSessionName: session.waha_session_name,
+    chatId,
   });
 
   // ── POR QUE NÃO SE EMITE `message.received` AQUI ────────────────────────────

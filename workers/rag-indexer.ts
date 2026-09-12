@@ -39,7 +39,7 @@ import {
   resolverChaveDeEmbedding,
   type ChaveDeEmbedding,
 } from "@/lib/ai/embeddings/chave";
-import { acquireDebounce } from "@/lib/ai/rag/debounce";
+import { acquireDebounce } from "@/lib/redis-debounce";
 import { chunkText, computeContentHash } from "@/lib/ai/rag/chunker";
 import { canonizarTipoDeFonte } from "@/lib/ai/rag/tipos-de-fonte";
 import { extrairTextoDoArquivo, ErroDeExtracao } from "@/lib/ai/rag/ingest/documento";

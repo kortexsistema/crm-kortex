@@ -46,6 +46,7 @@ import {
 } from "./evolucao";
 import { crmListContactOrders, crmSearchProducts } from "./comercio";
 import { crmListPrivacyRequests } from "./privacidade";
+import { queryExternalSupabaseTool } from "./custom_db";
 import {
   crmArchiveStage,
   crmCreateStage,
@@ -110,6 +111,7 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmListContactOrders,
   crmSearchProducts,
   crmListPrivacyRequests,
+  queryExternalSupabaseTool,
   // read — organizar a operação (W4)
   crmListStages,
   crmListTags,

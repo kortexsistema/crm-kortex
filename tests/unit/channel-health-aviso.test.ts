@@ -232,7 +232,7 @@ describe("os elos que somem sem barulho", () => {
 
     await dispatchWahaEvent(
       admin,
-      { id: "sess-1", organization_id: "org-1", is_warmup_complete: null, warmup_started_at: null },
+      { id: "sess-1", organization_id: "org-1", is_warmup_complete: null, warmup_started_at: null, waha_session_name: "test" },
       { event: "session.status", payload: { status: "FAILED" } },
       "req-1",
     );

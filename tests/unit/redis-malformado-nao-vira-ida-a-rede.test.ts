@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Dois módulos constroem um cliente Redis a partir das mesmas duas variáveis:
  *
  *   lib/ai/dispatcher/rate-limit.ts   (contador de login, convite, reset)
- *   lib/ai/rag/debounce.ts            (trava de indexação do material)
+ *   lib/redis-debounce.ts             (trava de indexação do material)
  *
  * Os dois só perguntavam `if (!url || !token)`. Com o valor PRESENTE e
  * malformado — as aspas do `.env` sobrando, a linha inteira colada, a quebra do
@@ -50,9 +50,9 @@ const MODULOS: Array<[string, () => Promise<Modulo>]> = [
     },
   ],
   [
-    "lib/ai/rag/debounce.ts",
+    "lib/redis-debounce.ts",
     async () => {
-      const m = await import("@/lib/ai/rag/debounce");
+      const m = await import("@/lib/redis-debounce");
       return {
         nome: "acquireDebounce",
         exercitar: () => m.acquireDebounce("org:agente:evento", 30),

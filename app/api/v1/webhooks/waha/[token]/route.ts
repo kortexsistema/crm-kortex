@@ -135,10 +135,10 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
   const eventType = roteado.event ?? "unknown";
   const externalId = roteado.payload?.id ?? null;
 
-  // Trava de Idempotência no Redis (60 segundos)
+  // Trava de Idempotência no Redis (15 segundos)
   if (externalId && eventType.startsWith("message")) {
     const lockKey = `waha:webhook:dedup:${session.organization_id}:${externalId}`;
-    const acquired = await acquireDebounce(lockKey, 60);
+    const acquired = await acquireDebounce(lockKey, 15);
     if (!acquired) {
       logger.info("[waha.webhook] webhook duplicado retido pelo Redis", { request_id: requestId, externalId });
       return ok({ accepted: true, dedup: true }, { requestId });

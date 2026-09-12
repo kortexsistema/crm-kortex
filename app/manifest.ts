@@ -7,9 +7,16 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   return {
     name: marca.nome,
     short_name: marca.nome,
+    description: `Plataforma de gestão ${marca.nome}`,
     display: "standalone",
     start_url: "/app",
     scope: "/",
-    icons: [{ src: "/icon", sizes: "64x64", type: "image/png" }],
+    background_color: "#ffffff",
+    theme_color: marca.accent,
+    icons: [
+      { src: "/api/pwa-icon?size=192", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/api/pwa-icon?size=512", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/api/pwa-icon?size=512", sizes: "512x512", type: "image/png", purpose: "maskable" }
+    ],
   };
 }

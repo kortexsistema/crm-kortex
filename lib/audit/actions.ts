@@ -43,6 +43,7 @@ export const AUDIT_ACTIONS = [
   "nuvemshop.oauth_failed",
   "nuvemshop.webhook_received",
   "nuvemshop.webhook_invalid_signature",
+  "integrations.external_supabase.connected",
   "lead.created",
   "lead.updated",
   "lead.deleted",

@@ -37,7 +37,7 @@ import { dispatchWahaEvent } from "@/lib/waha/ingest";
 import { PRAZO_DO_SILENCIO_MS } from "@/lib/escalacao/atendimento-manual";
 
 const ORG = "org-1";
-const SESSION = { id: "sess-1", organization_id: ORG, is_warmup_complete: true, warmup_started_at: null };
+const SESSION = { id: "sess-1", organization_id: ORG, is_warmup_complete: true, warmup_started_at: null, waha_session_name: "test" };
 
 interface Captura {
   conversationUpdates: Array<Record<string, unknown>>;

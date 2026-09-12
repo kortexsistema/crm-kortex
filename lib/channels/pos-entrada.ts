@@ -46,6 +46,7 @@ import { ehPedidoDeOptOut } from "@/lib/opt-out/deteccao";
 import { acelerarPipelineDeEventos } from "@/lib/dev/kick-local-pipeline";
 import { autorizarContatoParaIA } from "@/lib/ai/elegibilidade/autorizacao";
 import { casarCampanha, lerCampanhas } from "@/lib/ai/elegibilidade/campanha";
+import { getWahaClient } from "@/lib/waha/client";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -103,6 +104,8 @@ export interface EntradaDeMensagem {
    * lendo o `event_log` meses depois, se saiba por onde a mensagem entrou.
    */
   origem: string;
+  wahaSessionName?: string | null;
+  chatId?: string | null;
 }
 
 /**
@@ -121,12 +124,27 @@ export async function aplicarEfeitosPosEntrada(
   // A resposta do lead avança o follow-up AQUI. O despacho do agente (LLM)
   // vem depois: no Hobby ele estoura o tempo da request e o próximo texto
   // do fluxo ficava esperando o relógio.
-  await acelerarPipelineDeEventos(admin, {
+  // Feito assincronamente (void) para não segurar o response HTTP do webhook.
+  void acelerarPipelineDeEventos(admin, {
     organizationId: entrada.organizationId,
     contactId: entrada.contactId,
     messageId: entrada.messageId,
     texto: entrada.texto,
+  }).catch((err) => {
+    logger.warn("pos-entrada: acelerarPipelineDeEventos falhou no background", { 
+      error: err instanceof Error ? err.message : String(err) 
+    });
   });
+
+  const waha = getWahaClient();
+  if (waha && entrada.wahaSessionName && entrada.chatId) {
+    waha.startTyping(entrada.wahaSessionName, entrada.chatId).catch((err) => {
+      logger.warn("pos-entrada: startTyping failed", { 
+        error: err instanceof Error ? err.message : String(err) 
+      });
+    });
+  }
+
   await pedirDespachoDoAgente(admin, entrada);
 }
 

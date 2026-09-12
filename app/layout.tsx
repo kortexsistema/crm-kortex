@@ -21,6 +21,7 @@ import {
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { ThemeProvider } from "@/lib/theme";
+import { PwaRegistry } from "@/components/app/PwaRegistry";
 import { Providers } from "./providers";
 import { PublicEnvScript } from "./public-env-script";
 import "./globals.css";
@@ -104,7 +105,12 @@ export async function generateMetadata(): Promise<Metadata> {
     // `/icon` faz o pedido ir para `app/icon.tsx`, que desenha a marca da
     // instalação em runtime — ver o cabeçalho daquele arquivo para por que ele
     // não pode ser um arquivo estático em `public/`.
-    icons: { icon: "/icon" },
+    icons: { icon: "/icon", apple: "/api/pwa-icon?size=192" },
+    appleWebApp: {
+      capable: true,
+      title: name,
+      statusBarStyle: "default",
+    },
   };
 }
 
@@ -299,6 +305,7 @@ export default function RootLayout({
             closeButton
             duration={4000}
           />
+          <PwaRegistry />
         </Providers>
       </body>
     </html>
