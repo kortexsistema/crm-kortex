@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export type PlanType = "standard" | "pro" | "enterprise";
 
@@ -63,7 +63,7 @@ export async function validatePlanLimit(
   organizationId: string,
   resourceType: "users" | "connections" | "agents" | "integrations"
 ): Promise<{ allowed: boolean; limit: number | "unlimited"; currentCount: number }> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   
   const { data: org } = await supabase
     .from("organizations")

@@ -314,6 +314,13 @@ const schema = z.object({
     .default("false")
     .transform((v) => v === "true"),
 
+  // Bloqueio de novos cadastros de tenants (status pendente)
+  REQUIRE_TENANT_APPROVAL: z
+    .enum(["true", "false"])
+    .optional()
+    .default("false")
+    .transform((v) => v === "true"),
+
   // App URLs
   NEXT_PUBLIC_APP_URL: z
     .string()

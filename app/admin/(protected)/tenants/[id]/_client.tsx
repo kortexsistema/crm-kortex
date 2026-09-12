@@ -44,6 +44,17 @@ export function TenantOverviewClient({ id }: TenantOverviewClientProps) {
       {organization.status === "suspended" && organization.suspended_at && (
         <SuspendedBanner suspendedAt={organization.suspended_at} />
       )}
+      {(organization.status as string) === "pending" && (
+        <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
+          <div className="flex items-center gap-3 text-blue-600 dark:text-blue-400">
+            <span className="text-xl">⏳</span>
+            <div>
+              <p className="font-semibold text-sm">Organização aguardando aprovação</p>
+              <p className="text-sm opacity-80">Este tenant não poderá ser acessado até que seja aprovado pelo master admin.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <TenantOverview

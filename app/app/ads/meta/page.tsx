@@ -39,6 +39,32 @@ export default async function MetaAdsPage() {
     redirect("/403");
   }
 
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data: orgData } = await supabase
+    .from("organizations")
+    .select("plan")
+    .eq("id", activeOrg.orgId)
+    .single();
+
+  const { getPlanLimits } = await import("@/lib/billing/plan-limits");
+  const limits = getPlanLimits(orgData?.plan);
+
+  if (!limits.features.metaAds) {
+    const { FeatureGatedView } = await import("@/components/app/FeatureGatedView");
+    return (
+      <div className="-m-6 flex min-h-[calc(100%+3rem)] flex-col gap-6 bg-bg p-6 text-text">
+        <FeatureGatedView
+          title="Meta Ads"
+          description="O desempenho das campanhas que estão trazendo gente para cá."
+          featureName="Meta Ads Integration"
+          planName={orgData?.plan || "standard"}
+          locale={user.idioma}
+        />
+      </div>
+    );
+  }
+
   const admin = createAdminClient();
   const conexao = await existeConexaoDeLeitura(admin, activeOrg.orgId, "meta_ads");
 

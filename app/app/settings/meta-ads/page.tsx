@@ -48,6 +48,31 @@ export default async function MetaAdsSettingsPage() {
     redirect("/403");
   }
 
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data: orgData } = await supabase
+    .from("organizations")
+    .select("plan")
+    .eq("id", activeOrg.orgId)
+    .single();
+
+  const { getPlanLimits } = await import("@/lib/billing/plan-limits");
+  const limits = getPlanLimits(orgData?.plan);
+
+  if (!limits.features.metaAds) {
+    const { FeatureGatedView } = await import("@/components/app/FeatureGatedView");
+    return (
+      <FeatureGatedView
+        title="Meta Ads"
+        description="Conecte um token de acesso para o sistema ler o desempenho das suas campanhas e mostrá-lo em Análise."
+        featureName="Meta Ads Integration"
+        planName={orgData?.plan || "standard"}
+        locale={user.idioma}
+      />
+    );
+  }
+
+
   const admin = createAdminClient();
   const conexao = await existeConexaoDeLeitura(admin, activeOrg.orgId, "meta_ads");
 

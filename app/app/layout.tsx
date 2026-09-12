@@ -65,6 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       .maybeSingle();
     if (orgRow && !orgRow.onboarded_at && !user.support) redirect("/onboarding");
     if (orgRow?.status === "suspended") redirect("/account-suspended");
+    if (orgRow?.status === "pending") redirect("/account-pending");
 
     // Validação de expiração de assinatura
     if (orgRow?.subscription_expires_at && !user.support) {

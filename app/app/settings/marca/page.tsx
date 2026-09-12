@@ -57,9 +57,26 @@ export default async function MarcaDaOrganizacaoPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("organizations")
-    .select("settings")
+    .select("settings, plan")
     .eq("id", activeOrg.orgId)
     .maybeSingle();
+
+  const { getPlanLimits } = await import("@/lib/billing/plan-limits");
+  const limits = getPlanLimits(data?.plan);
+
+  if (!limits.features.customBranding) {
+    const { FeatureGatedView } = await import("@/components/app/FeatureGatedView");
+    return (
+      <FeatureGatedView
+        title="Marca"
+        description="O nome e a cor que a sua empresa mostra para quem trabalha aqui dentro."
+        featureName="Personalização de Marca"
+        planName={data?.plan || "standard"}
+        locale={user.idioma}
+      />
+    );
+  }
+
 
   const gravada = marcaDaOrganizacaoDeSettings(data?.settings ?? null);
   const linha = await marcaDaInstalacao();

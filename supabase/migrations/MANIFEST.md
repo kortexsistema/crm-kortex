@@ -291,4 +291,4 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20260908210000` | `0235_openrouter_catalog_seed` | **Catálogo curado e modelos gratuitos da OpenRouter.** Semeia os modelos carro-chefe das principais fabricantes (Anthropic Claude 3.5/3, OpenAI GPT-4o/o1, Google Gemini 2.5/1.5, Meta Llama 3.3/3.1, DeepSeek V3/R1 e Qwen 2.5) e modelos gratuitos (`:free`) para testes sem custo na tabela `ai_models`. Define `meta-llama/llama-3.3-70b-instruct` como modelo padrão do provedor OpenRouter (`is_default_for_provider = true`). |
 
 2 0 2 6 0 9 0 8 2 2 0 0 0 0 _ 0 2 3 6 _ t e n a n t _ i n t e g r a t i o n s _ e x t e r n a l _ s u p a b a s e . s q l  
- 
+ 20260912154500_0237_tenant_pending_status.sql

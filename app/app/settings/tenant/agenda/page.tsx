@@ -42,6 +42,28 @@ export default async function TiposDeAgendamentoPage() {
   const podeEditar = (user.is_platform_admin && !user.support) || ROLE_RANK[activeOrg.role] >= ROLE_RANK.manager;
 
   const supabase = await createClient();
+  const { data: orgData } = await supabase
+    .from("organizations")
+    .select("plan")
+    .eq("id", activeOrg.orgId)
+    .single();
+
+  const { getPlanLimits } = await import("@/lib/billing/plan-limits");
+  const limits = getPlanLimits(orgData?.plan);
+
+  if (!limits.features.agenda) {
+    const { FeatureGatedView } = await import("@/components/app/FeatureGatedView");
+    return (
+      <FeatureGatedView
+        title="Tipos de agendamento"
+        description="O que se pode marcar, quanto dura e quem atende. É isto que a tela de marcar e o agente de IA oferecem ao cliente."
+        featureName="Agenda e Agendamento"
+        planName={orgData?.plan || "standard"}
+        locale={user.idioma}
+      />
+    );
+  }
+
   const [{ data: tipos }, { data: pessoas }] = await Promise.all([
     supabase
       .from("calendar_event_types")

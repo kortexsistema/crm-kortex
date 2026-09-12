@@ -12,7 +12,7 @@ import { useT } from "@/hooks/i18n/useT";
 
 interface TenantActionsProps {
   organizationId: string;
-  status: "active" | "suspended" | "redacted";
+  status: "active" | "suspended" | "redacted" | "pending" | "archived" | string;
   displayName: string;
 }
 
@@ -28,10 +28,25 @@ export function TenantActions({
   const t = useT();
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [reactivateOpen, setReactivateOpen] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   const canSuspend = status === "active";
   const isSuspended = status === "suspended";
   const isRedacted = status === "redacted";
+  const isPending = status === "pending";
+
+  async function handleApprove() {
+    setIsApproving(true);
+    try {
+      const { approveTenant } = await import("@/app/actions/admin/approveTenant");
+      const res = await approveTenant(organizationId);
+      if (!res.ok) alert(res.error);
+    } catch (e) {
+      alert("Erro ao aprovar tenant.");
+    } finally {
+      setIsApproving(false);
+    }
+  }
 
   return (
     <>
@@ -71,6 +86,19 @@ export function TenantActions({
             aria-label={t("Reativar tenant")}
           >
             {t("Reativar tenant")}
+          </Button>
+        )}
+
+        {/* Approve */}
+        {isPending && (
+          <Button
+            className="w-full"
+            variant="default"
+            onClick={handleApprove}
+            disabled={isApproving}
+            aria-label={t("Aprovar tenant")}
+          >
+            {isApproving ? t("Aprovando...") : t("Aprovar tenant")}
           </Button>
         )}
 

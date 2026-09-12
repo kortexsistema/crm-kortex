@@ -44,6 +44,30 @@ export default async function AgendaPage() {
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) redirect("/app");
 
+  const supabase = await createClient();
+  const { data: orgData } = await supabase
+    .from("organizations")
+    .select("plan")
+    .eq("id", activeOrg.orgId)
+    .single();
+
+  const { getPlanLimits } = await import("@/lib/billing/plan-limits");
+  const limits = getPlanLimits(orgData?.plan);
+
+  if (!limits.features.agenda) {
+    const { FeatureGatedView } = await import("@/components/app/FeatureGatedView");
+    return (
+      <FeatureGatedView
+        title="Agenda"
+        description="O que está marcado, com quem, e quem atende — seu e da equipe."
+        featureName="Agenda e Agendamento"
+        planName={orgData?.plan || "standard"}
+        locale={user.idioma}
+      />
+    );
+  }
+
+
   // `user.timezone` e não `user_metadata.timezone`: o AuthUser deste projeto
   // não expõe o metadata cru — ele extrai o que toda tela precisa no primeiro
   // render, como já fazia com o `locale`. O fuso entrou lá pela mesma razão.
@@ -75,7 +99,6 @@ export default async function AgendaPage() {
    * fica. E é melhor que esperar: uma tela vazia por falta de rota é
    * indistinguível, para quem olha, de uma agenda sem compromissos.
    */
-  const supabase = await createClient();
 
   // A semana da âncora, que é o que a grade abre por padrão.
   const inicio = startOfWeek(new Date(), { weekStartsOn: 0 });

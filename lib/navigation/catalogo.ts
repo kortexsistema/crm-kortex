@@ -672,6 +672,15 @@ export const NAV_CATALOG = [
     section: "Dados e acesso",
     minRole: "admin",
   },
+  {
+    href: "/app/settings/integrations",
+    label: "Integrações",
+    description: "Integrações externas com outras plataformas.",
+    icon: "PlugsConnected",
+    group: "organizacao",
+    section: "Dados e acesso",
+    minRole: "admin",
+  },
 ] as const satisfies readonly NavMetadata[];
 
 export type NavDestinationId = (typeof NAV_CATALOG)[number]["href"];

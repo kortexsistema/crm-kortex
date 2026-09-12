@@ -36,6 +36,28 @@ export default async function ProdutosPage() {
   const podeEditar = (user.is_platform_admin && !user.support) || ROLE_RANK[activeOrg.role] >= ROLE_RANK.manager;
 
   const supabase = await createClient();
+  const { data: orgData } = await supabase
+    .from("organizations")
+    .select("plan")
+    .eq("id", activeOrg.orgId)
+    .single();
+
+  const { getPlanLimits } = await import("@/lib/billing/plan-limits");
+  const limits = getPlanLimits(orgData?.plan);
+
+  if (!limits.features.products) {
+    const { FeatureGatedView } = await import("@/components/app/FeatureGatedView");
+    return (
+      <FeatureGatedView
+        title="Produtos"
+        description="O catálogo da loja. É daqui que o atendente de IA tira o preço quando alguém pergunta."
+        featureName="Cadastro de Produtos"
+        planName={orgData?.plan || "standard"}
+        locale={user.idioma}
+      />
+    );
+  }
+
   const { data } = await supabase
     .from("catalog_products")
     .select(COLUNAS_DO_PRODUTO)

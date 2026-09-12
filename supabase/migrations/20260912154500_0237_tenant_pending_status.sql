@@ -1,0 +1,2 @@
+alter table "public"."organizations" drop constraint if exists "organizations_status_check";
+alter table "public"."organizations" add constraint "organizations_status_check" CHECK ((status = ANY (ARRAY['active'::text, 'pending'::text, 'suspended'::text, 'redacted'::text, 'archived'::text])));

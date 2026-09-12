@@ -1746,7 +1746,7 @@ CREATE TABLE IF NOT EXISTS "public"."organizations" (
     "onboarding_state" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     "suspended_reason" "text",
     "suspended_by" "uuid",
-    CONSTRAINT "organizations_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'suspended'::"text", 'redacted'::"text", 'archived'::"text"])))
+    CONSTRAINT "organizations_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'pending'::"text", 'suspended'::"text", 'redacted'::"text", 'archived'::"text"])))
 );
 
 
