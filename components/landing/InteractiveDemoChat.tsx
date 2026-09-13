@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Car, Stethoscope, Scale, GraduationCap, Home, Sparkles, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { traduzir } from "@/lib/i18n/dicionario";
 
 const NICHES = [
   { id: "veiculos", label: "Veículos", icon: Car },
@@ -20,6 +21,7 @@ type Message = {
 };
 
 export function InteractiveDemoChat() {
+  const t = (texto: string) => traduzir(texto, "pt-BR");
   const [activeNiche, setActiveNiche] = useState(NICHES[0]!);
   const [rateLimited, setRateLimited] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -175,14 +177,10 @@ export function InteractiveDemoChat() {
       </div>
 
       {rateLimited && (
-        <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/20 text-red-400 text-xs text-center">
-          Você atingiu o limite de mensagens para esta demonstração. Crie sua conta para testar mais!
-        </div>
+        <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/20 text-red-400 text-xs text-center">{t("Você atingiu o limite de mensagens para esta demonstração. Crie sua conta para testar mais!")}</div>
       )}
       {!rateLimited && (
-        <div className="px-4 py-1.5 bg-[#1a1a1a] border-t border-zinc-800 text-zinc-500 text-xs text-center">
-          Ambiente de Sandbox - As mensagens não são salvas no sistema.
-        </div>
+        <div className="px-4 py-1.5 bg-[#1a1a1a] border-t border-zinc-800 text-zinc-500 text-xs text-center">{t("Ambiente de Sandbox - As mensagens não são salvas no sistema.")}</div>
       )}
 
       <form

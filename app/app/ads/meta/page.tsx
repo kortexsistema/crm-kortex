@@ -35,6 +35,8 @@ export default async function MetaAdsPage() {
   const user = await requireAuth();
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) redirect("/app");
+  const idioma = user.idioma;
+  const t = (texto: string) => traduzir(texto, idioma);
   if (!(user.is_platform_admin && !user.support) && ROLE_RANK[activeOrg.role] < ROLE_RANK.manager) {
     redirect("/403");
   }
@@ -56,7 +58,7 @@ export default async function MetaAdsPage() {
       <div className="-m-6 flex min-h-[calc(100%+3rem)] flex-col gap-6 bg-bg p-6 text-text">
         <FeatureGatedView
           title="Meta Ads"
-          description="O desempenho das campanhas que estão trazendo gente para cá."
+          description={t("O desempenho das campanhas que estão trazendo gente para cá.")}
           featureName="Meta Ads Integration"
           planName={orgData?.plan || "standard"}
           locale={user.idioma}
@@ -68,8 +70,7 @@ export default async function MetaAdsPage() {
   const admin = createAdminClient();
   const conexao = await existeConexaoDeLeitura(admin, activeOrg.orgId, "meta_ads");
 
-  const idioma = user.idioma;
-  const t = (texto: string) => traduzir(texto, idioma);
+  
   // Quem NÃO pode conectar não deve ler "vá em Configurações" — a tela lá é
   // `admin`, e mandar um manager para uma porta que devolve 403 é pior que
   // dizer a verdade: ele precisa pedir para alguém.

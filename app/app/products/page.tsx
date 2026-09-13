@@ -50,7 +50,7 @@ export default async function ProdutosPage() {
     return (
       <FeatureGatedView
         title="Produtos"
-        description="O catálogo da loja. É daqui que o atendente de IA tira o preço quando alguém pergunta."
+        description={t("O catálogo da loja. É daqui que o atendente de IA tira o preço quando alguém pergunta.")}
         featureName="Cadastro de Produtos"
         planName={orgData?.plan || "standard"}
         locale={user.idioma}

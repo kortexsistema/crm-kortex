@@ -52,11 +52,9 @@ function arquivosQueEscrevemAtividade(): string[] {
   for (const marca of MARCAS) {
     let saida = "";
     try {
-      saida = execFileSync(
-        "grep",
-        ["-rl", "--include=*.ts", "--include=*.tsx", marca, ...PASTAS],
-        { cwd: RAIZ, encoding: "utf8" },
-      );
+      saida = process.platform === "win32"
+        ? execFileSync("git", ["grep", "--untracked", "-l", marca, "--", ...PASTAS], { cwd: RAIZ, encoding: "utf8" })
+        : execFileSync("grep", ["-rl", "--include=*.ts", "--include=*.tsx", marca, ...PASTAS], { cwd: RAIZ, encoding: "utf8" });
     } catch {
       // `grep` sai com 1 quando não acha nada, e o `execFileSync` LANÇA. Sem
       // este catch, a sabotagem da varredura vazia derrubava o arquivo inteiro

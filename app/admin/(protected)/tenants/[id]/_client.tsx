@@ -49,8 +49,8 @@ export function TenantOverviewClient({ id }: TenantOverviewClientProps) {
           <div className="flex items-center gap-3 text-blue-600 dark:text-blue-400">
             <span className="text-xl">⏳</span>
             <div>
-              <p className="font-semibold text-sm">Organização aguardando aprovação</p>
-              <p className="text-sm opacity-80">Este tenant não poderá ser acessado até que seja aprovado pelo master admin.</p>
+              <p className="font-semibold text-sm">{t("Organização aguardando aprovação")}</p>
+              <p className="text-sm opacity-80">{t("Este tenant não poderá ser acessado até que seja aprovado pelo master admin.")}</p>
             </div>
           </div>
         </div>

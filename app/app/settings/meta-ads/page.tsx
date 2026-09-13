@@ -41,7 +41,10 @@ export const dynamic = "force-dynamic";
 export default async function MetaAdsSettingsPage() {
   const user = await requireAuth();
   const activeOrg = await resolveActiveOrg(user);
+  const idioma = user.idioma;
+  const t = (texto: string) => traduzir(texto, idioma);
   if (!activeOrg) redirect("/app");
+  
   // Mesmo gate de `settings/conversoes`: o objeto é uma credencial da conta de
   // anúncios da empresa, ao lado de billing e API tokens na mesma prancheta.
   if (!(user.is_platform_admin && !user.support) && ROLE_RANK[activeOrg.role] < ROLE_RANK.admin) {
@@ -64,7 +67,7 @@ export default async function MetaAdsSettingsPage() {
     return (
       <FeatureGatedView
         title="Meta Ads"
-        description="Conecte um token de acesso para o sistema ler o desempenho das suas campanhas e mostrá-lo em Análise."
+        description={t("Conecte um token de acesso para o sistema ler o desempenho das suas campanhas e mostrá-lo em Análise.")}
         featureName="Meta Ads Integration"
         planName={orgData?.plan || "standard"}
         locale={user.idioma}
@@ -76,8 +79,7 @@ export default async function MetaAdsSettingsPage() {
   const admin = createAdminClient();
   const conexao = await existeConexaoDeLeitura(admin, activeOrg.orgId, "meta_ads");
 
-  const idioma = user.idioma;
-  const t = (texto: string) => traduzir(texto, idioma);
+  
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">

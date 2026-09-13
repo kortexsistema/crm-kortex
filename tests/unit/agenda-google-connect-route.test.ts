@@ -54,6 +54,7 @@ const CONFIGURADO = {
 };
 
 beforeEach(() => {
+  globalThis.__memoDoAppDoGoogle = { valor: null, expiraEm: Infinity };
   vi.mocked(requireRole).mockResolvedValue({ ok: true, user: usuario, org: orgAtiva });
   vi.mocked(audit).mockClear();
 });
@@ -140,3 +141,4 @@ vi.mock("@/lib/impersonate/support", async (importOriginal) => ({
   requireSupportWrite: vi.fn(async () => null),
   authenticatedSessionId: vi.fn(async () => "f2200000-0000-4000-8000-000000000099"),
 }));
+

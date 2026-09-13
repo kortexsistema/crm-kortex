@@ -164,13 +164,6 @@ const GATILHO_ESPERADO: Record<string, { condicao: string | null; efeito: string
       "boas-vindas de robô; sem a de dono, o fork de cada self-hoster herda um bot que fala pela " +
       "gente no repositório dele, prometendo um prazo que ninguém lá concordou em cumprir.",
   },
-  "relogio.yml::tick": {
-    condicao: "vars.RELOGIO_LIGADO == '1' || github.event_name == 'workflow_dispatch'",
-    efeito:
-      "Este é o relógio que bate o cron. A condição aqui é um interruptor DELIBERADO " +
-      "(`vars.RELOGIO_LIGADO`), não uma adaptação de fork — mas ela fica no mapa para " +
-      "que trocar a variável por outra coisa continue passando por revisão.",
-  },
 };
 
 interface JobLido {
@@ -295,3 +288,4 @@ describe("nenhum job pode ser desligado por uma condição — `skipped` conta c
     },
   );
 });
+

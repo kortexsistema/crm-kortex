@@ -29,14 +29,14 @@ devem compartilhar o **mesmo** `dep=dpl_…`.
 
 ## Opção A — GitHub Actions (grátis em repo público)
 
-Arquivo: [`.github/workflows/relogio.yml`](../../.github/workflows/relogio.yml).
+Arquivo: o workflow do rel�gio.
 
 **Limitação:** o `schedule:` do Actions **só roda na branch default (`main`)**.
 Se o workflow existir só em `develop`, o cron **nunca** dispara.
 
 ### Ligar
 
-1. Mergeie `.github/workflows/relogio.yml` em `main` (ou copie o arquivo).
+1. Mergeie o workflow do rel�gio em `main` (ou copie o arquivo).
 2. No GitHub do **seu** fork/instalação → Settings → Secrets and variables:
 
 | Tipo | Nome | Valor |
@@ -92,3 +92,4 @@ Na fila de follow-ups, o status sai de **Aguardando resposta**.
 4. `recover-stuck-messages`
 
 Definição canônica: `lib/relogio/tarefas.ts` + `lib/relogio/executar.ts`.
+

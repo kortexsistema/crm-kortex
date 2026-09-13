@@ -56,7 +56,7 @@ export default async function TiposDeAgendamentoPage() {
     return (
       <FeatureGatedView
         title="Tipos de agendamento"
-        description="O que se pode marcar, quanto dura e quem atende. É isto que a tela de marcar e o agente de IA oferecem ao cliente."
+        description={t("O que se pode marcar, quanto dura e quem atende. É isto que a tela de marcar e o agente de IA oferecem ao cliente.")}
         featureName="Agenda e Agendamento"
         planName={orgData?.plan || "standard"}
         locale={user.idioma}

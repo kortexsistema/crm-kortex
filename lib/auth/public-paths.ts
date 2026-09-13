@@ -38,6 +38,7 @@ export const PUBLIC_PATHS: RegExp[] = [
   /^\/api\/v1\/agenda\/google\/callback$/,
   /^\/api\/v1\/integrations\/nuvemshop\/callback$/,
   /^\/api\/internal\//,
+  /^\/api\/public\//,
   /^\/api\/mcp(\/.*)?$/,
   /^\/_next\//,
   /^\/favicon\.ico$/,

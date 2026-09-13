@@ -23,6 +23,7 @@
  *    fechada (o trigger `fn_crm_lead_close_on_stage` decide isso no banco,
  *    contra o `status: "open"` que o handler grava).
  */
+// @vitest-environment node
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
@@ -193,7 +194,7 @@ function pedido(csv: string, campos: Record<string, string | null> = {}) {
   return new NextRequest("http://x/api/v1/leads/import", {
     method: "POST",
     headers: { "content-type": `multipart/form-data; boundary=${B}` },
-    body: corpo,
+    body: Buffer.from(corpo),
   });
 }
 

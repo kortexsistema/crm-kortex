@@ -73,7 +73,7 @@ async function rendered(data: ExportPayload) {
     join(
       dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")),
       "standard_fonts",
-    ) + sep;
+    ).replace(/\\/g, "/") + "/";
   const task = getDocument({ data: new Uint8Array(bytes), standardFontDataUrl: fonts });
   const document = await task.promise;
   try {

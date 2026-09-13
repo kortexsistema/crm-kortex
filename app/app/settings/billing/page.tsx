@@ -80,7 +80,7 @@ export default async function BillingPage() {
                 <span>{traduzir("Vencimento da Assinatura", idioma)}</span>
                 <strong className="text-foreground">
                   {expiresAt
-                    ? expiresAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                    ? expiresAt.toLocaleDateString(idioma, { day: "2-digit", month: "2-digit", year: "numeric" })
                     : traduzir("Vitalício / Indeterminado", idioma)}
                 </strong>
               </div>
@@ -164,3 +164,4 @@ export default async function BillingPage() {
     </div>
   );
 }
+

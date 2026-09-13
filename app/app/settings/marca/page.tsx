@@ -46,6 +46,8 @@ export default async function MarcaDaOrganizacaoPage() {
   const user = await requireAuth();
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) redirect("/app");
+  const idioma = user.idioma;
+  const t = (texto: string) => traduzir(texto, idioma);
   if (!(user.is_platform_admin && !user.support) && ROLE_RANK[activeOrg.role] < ROLE_RANK.admin) {
     redirect("/403");
   }
@@ -69,7 +71,7 @@ export default async function MarcaDaOrganizacaoPage() {
     return (
       <FeatureGatedView
         title="Marca"
-        description="O nome e a cor que a sua empresa mostra para quem trabalha aqui dentro."
+        description={t("O nome e a cor que a sua empresa mostra para quem trabalha aqui dentro.")}
         featureName="Personalização de Marca"
         planName={data?.plan || "standard"}
         locale={user.idioma}
@@ -80,7 +82,7 @@ export default async function MarcaDaOrganizacaoPage() {
 
   const gravada = marcaDaOrganizacaoDeSettings(data?.settings ?? null);
   const linha = await marcaDaInstalacao();
-  const idioma = user.idioma;
+  
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">

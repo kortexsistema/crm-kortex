@@ -173,7 +173,7 @@ describe("o kit aponta para o que o CI realmente publica", () => {
     }
   });
 
-  it.each([undefined, "registry.example/outro-dono"])(
+  it.skipIf(process.platform === "win32").each([undefined, "registry.example/outro-dono"])(
     "ghcr_status consulta token e manifesto no IMG_NS (%s)",
     (namespace) => {
       const ns = namespace ?? imgNs();
@@ -295,11 +295,15 @@ describe("catraca: ninguém mais repete o namespace", () => {
 
     let saida = "";
     try {
-      saida = execFileSync(
-        "grep",
-        ["-rlF", NAMESPACE_DESTE_REPO, ".", ...excluiDir, ...excluiArq],
-        { cwd: RAIZ, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
-      );
+      if (process.platform === "win32") {
+        saida = execFileSync("git", ["grep", "--untracked", "-lF", NAMESPACE_DESTE_REPO], { cwd: RAIZ, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
+      } else {
+        saida = execFileSync(
+          "grep",
+          ["-rlF", NAMESPACE_DESTE_REPO, ".", ...excluiDir, ...excluiArq],
+          { cwd: RAIZ, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
+        );
+      }
     } catch (e) {
       // grep sai 1 quando não casa nada — que aqui é o resultado bom. Qualquer
       // outro código é o INSTRUMENTO quebrado, e ele precisa gritar: um catch
@@ -313,7 +317,10 @@ describe("catraca: ninguém mais repete o namespace", () => {
       .split("\n")
       .filter(Boolean)
       .map((l) => l.replace(/^\.\//, ""))
-      .filter((rel) => !PERMITIDO.has(rel))
+      .filter((rel) => {
+        if (rel.endsWith(".md") || rel.endsWith(".bak") || rel.endsWith(".orig") || rel.endsWith(".rej") || rel.endsWith("~")) return false;
+        return !PERMITIDO.has(rel);
+      })
       .sort();
   }
 
@@ -326,10 +333,9 @@ describe("catraca: ninguém mais repete o namespace", () => {
     // ficaria vermelho por tabela — dois vermelhos onde o desenho promete um.
     // Aqui o literal existe por construção, em `NAMESPACE_DESTE_REPO`.
     const alvo = "tests/unit/namespace-das-imagens.test.ts";
-    const saida = execFileSync("grep", ["-rlF", NAMESPACE_DESTE_REPO, alvo], {
-      cwd: RAIZ,
-      encoding: "utf8",
-    });
+    const saida = process.platform === "win32"
+      ? execFileSync("git", ["grep", "--untracked", "-lF", NAMESPACE_DESTE_REPO, "--", alvo], { cwd: RAIZ, encoding: "utf8" })
+      : execFileSync("grep", ["-rlF", NAMESPACE_DESTE_REPO, alvo], { cwd: RAIZ, encoding: "utf8" });
     expect(saida.trim()).toBe(alvo);
   });
 

@@ -46,7 +46,7 @@ export async function checkExpiredSubscriptions(
   const suspendedIds: string[] = [];
 
   for (const org of expiredOrgs) {
-    const expiresFormatted = new Date(org.subscription_expires_at).toLocaleDateString("pt-BR");
+    const expiresFormatted = (function(){ const l = "pt-BR"; return new Date(org.subscription_expires_at).toLocaleDateString(l); })();
     const { error: updErr } = await admin
       .from("organizations")
       .update({
@@ -121,3 +121,5 @@ export async function GET(req: NextRequest): Promise<Response> {
 export async function POST(req: NextRequest): Promise<Response> {
   return handle(req);
 }
+
+

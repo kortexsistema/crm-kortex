@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useT } from "@/hooks/i18n/useT";
+import { useTagDeIdioma } from "@/hooks/i18n/useLocaleDeData";
 import { apiClient } from "@/lib/api/client";
 
 interface TenantSubscriptionCardProps {
@@ -32,6 +33,7 @@ export function TenantSubscriptionCard({
   status,
 }: TenantSubscriptionCardProps) {
   const t = useT();
+  const tagDoIdioma = useTagDeIdioma();
   const queryClient = useQueryClient();
 
   const [selectedPlan, setSelectedPlan] = useState<string>(plan ?? "standard");
@@ -106,7 +108,7 @@ export function TenantSubscriptionCard({
             <span className="text-muted-foreground">{t("Validade:")}</span>
             <span className="font-medium text-foreground">
               {expiresDate
-                ? expiresDate.toLocaleDateString("pt-BR", {
+                ? expiresDate.toLocaleDateString(tagDoIdioma, {
                     day: "2-digit",
                     month: "2-digit",
                     year: "numeric",

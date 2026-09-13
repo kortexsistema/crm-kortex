@@ -28,6 +28,7 @@ async function importarComEnv(vars: Record<string, string>) {
 }
 
 beforeEach(() => {
+  globalThis.__memoDoAppDoGoogle = { valor: null, expiraEm: Infinity };
   process.env.GOOGLE_CALENDAR_CLIENT_ID = "";
   process.env.GOOGLE_CALENDAR_CLIENT_SECRET = "";
 });
@@ -121,3 +122,5 @@ describe("faltaParaConectarOGoogle", () => {
     expect(await faltaParaConectarOGoogle()).toEqual([]);
   });
 });
+
+

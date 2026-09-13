@@ -69,6 +69,11 @@ for (const [chave, valor] of Object.entries(PLACEHOLDERS)) {
   process.env[chave] ??= valor;
 }
 
+// Força fallback em memória para os limitadores de taxa durante os testes
+// evitando conexões pendentes que estouram o timeout (especialmente com fake timers).
+delete process.env.UPSTASH_REDIS_REST_URL;
+delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
 import "@testing-library/jest-dom/vitest";
 
 // jsdom não implementa ResizeObserver; Radix (ex.: Switch) usa em layout effects.

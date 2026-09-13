@@ -1,3 +1,4 @@
+import { traduzir } from "@/lib/i18n/dicionario";
 import Link from "next/link";
 import { ArrowRight, Bot, Zap, Shield, MessageSquare } from "lucide-react";
 import { InteractiveDemoChat } from "@/components/landing/InteractiveDemoChat";
@@ -6,6 +7,10 @@ export const metadata = {
   title: "KORTEX CRM - O Sistema Operacional de Vendas com IA",
   description: "Automação de vendas, qualificação e atendimento via WhatsApp impulsionados por Inteligência Artificial.",
 };
+
+export const dynamic = "force-dynamic";
+
+const t = (texto: string) => traduzir(texto, "pt-BR");
 
 export default function HomePage() {
   return (
@@ -38,20 +43,20 @@ export default function HomePage() {
             Agentes de IA Nativos
           </div>
           <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight mb-6 leading-tight">
-            Venda no automático. <br />
+            {t("Venda no automático.")} <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-600">
               Qualifique em segundos.
             </span>
           </h1>
           <p className="text-lg md:text-xl text-zinc-400 mb-10 max-w-2xl mx-auto">
-            O CRM inteligente que atende seus clientes 24h por dia no WhatsApp, entende o que eles buscam e já prepara tudo para você fechar a venda.
+            {t("O CRM inteligente que atende seus clientes 24h por dia no WhatsApp, entende o que eles buscam e já prepara tudo para você fechar a venda.")}
           </p>
           <div className="flex items-center justify-center gap-4">
             <Link
               href="/app"
               className="inline-flex items-center gap-2 bg-sky-600 hover:bg-sky-500 text-white px-8 py-4 rounded-full font-medium transition-transform hover:scale-105"
             >
-              Começar Agora <ArrowRight className="w-4 h-4" />
+              {t("Começar Agora")} <ArrowRight className="w-4 h-4" />
             </Link>
             <a
               href="#sandbox"
@@ -70,9 +75,9 @@ export default function HomePage() {
                 <div className="w-12 h-12 rounded-lg bg-sky-500/10 flex items-center justify-center mb-6">
                   <Zap className="w-6 h-6 text-sky-400" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-3">Sem Latência</h3>
+                <h3 className="text-xl font-bold text-white mb-3">{t("Sem Latência")}</h3>
                 <p className="text-zinc-400 leading-relaxed">
-                  Respostas instantâneas integradas diretamente ao seu número, sem intermediários caros.
+                  {t("Respostas instantâneas integradas diretamente ao seu número, sem intermediários caros.")}
                 </p>
               </div>
               <div className="bg-[#1a1a1a] p-8 rounded-2xl border border-zinc-800">
@@ -81,16 +86,16 @@ export default function HomePage() {
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3">Multi-nicho</h3>
                 <p className="text-zinc-400 leading-relaxed">
-                  Pronto para clínicas, escolas, imobiliárias ou e-commerce. A IA se adapta perfeitamente ao seu negócio.
+                  {t("Pronto para clínicas, escolas, imobiliárias ou e-commerce. A IA se adapta perfeitamente ao seu negócio.")}
                 </p>
               </div>
               <div className="bg-[#1a1a1a] p-8 rounded-2xl border border-zinc-800">
                 <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-6">
                   <Shield className="w-6 h-6 text-emerald-400" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-3">Segurança Total</h3>
+                <h3 className="text-xl font-bold text-white mb-3">{t("Segurança Total")}</h3>
                 <p className="text-zinc-400 leading-relaxed">
-                  Self-hosted e LGPD-first. Você é dono dos seus dados e das conversas dos seus clientes.
+                  {t("Self-hosted e LGPD-first. Você é dono dos seus dados e das conversas dos seus clientes.")}
                 </p>
               </div>
             </div>
@@ -104,7 +109,7 @@ export default function HomePage() {
               Experimente a IA ao vivo
             </h2>
             <p className="text-zinc-400 max-w-2xl mx-auto">
-              Escolha um nicho abaixo e converse com nosso agente de demonstração. Descubra como ele qualifica leads e agenda atendimentos naturalmente.
+              {t("Escolha um nicho abaixo e converse com nosso agente de demonstração. Descubra como ele qualifica leads e agenda atendimentos naturalmente.")}
             </p>
           </div>
           
@@ -116,7 +121,7 @@ export default function HomePage() {
 
         {/* CTA Footer */}
         <section className="py-24 text-center border-t border-zinc-800 bg-[#0f0f0f]">
-          <h2 className="text-3xl font-bold text-white mb-6">Pronto para escalar seu atendimento?</h2>
+          <h2 className="text-3xl font-bold text-white mb-6">{t("Pronto para escalar seu atendimento?")}</h2>
           <Link
             href="/app"
             className="inline-flex items-center gap-2 bg-white hover:bg-zinc-200 text-black px-8 py-4 rounded-full font-bold transition-transform hover:scale-105"

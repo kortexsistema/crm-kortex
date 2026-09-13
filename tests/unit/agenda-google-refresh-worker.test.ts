@@ -99,6 +99,7 @@ function respostaHttp(corpo: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  globalThis.__memoDoAppDoGoogle = { valor: null, expiraEm: Infinity };
   atualizacoes = [];
   linhas = [];
   vinculos = [{ organization_id: "org-1", user_id: "user-1", revoked_at: null }];
@@ -300,3 +301,4 @@ describe("renovarAgendasDoGoogle", () => {
     expect(workerEscreve).toBe(true);
   });
 });
+

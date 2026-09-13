@@ -1,5 +1,6 @@
 import { addDays, startOfWeek } from "date-fns";
 import { redirect } from "next/navigation";
+import { traduzir } from "@/lib/i18n/dicionario";
 
 import { enderecoDeRetorno, faltaParaConectarOGoogle, googleEstaConfigurado } from "@/lib/agenda/google/config";
 import { PROVEDOR_GOOGLE } from "@/lib/agenda/tipos";
@@ -43,6 +44,8 @@ export default async function AgendaPage() {
   const user = await requireAuth();
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) redirect("/app");
+  const idioma = user.idioma;
+  const t = (texto: string) => traduzir(texto, idioma);
 
   const supabase = await createClient();
   const { data: orgData } = await supabase
@@ -59,7 +62,7 @@ export default async function AgendaPage() {
     return (
       <FeatureGatedView
         title="Agenda"
-        description="O que está marcado, com quem, e quem atende — seu e da equipe."
+        description={t("O que está marcado, com quem, e quem atende — seu e da equipe.")}
         featureName="Agenda e Agendamento"
         planName={orgData?.plan || "standard"}
         locale={user.idioma}

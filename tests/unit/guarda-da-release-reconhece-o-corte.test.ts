@@ -230,7 +230,7 @@ afterAll(() => {
   if (repo) rmSync(repo, { recursive: true, force: true });
 });
 
-describe("a guarda reconhece o corte pela forma dele", () => {
+describe.skipIf(process.platform === "win32")("a guarda reconhece o corte pela forma dele", () => {
   it("CORTA o merge de release que correu junto com um PR comum — a forma exata da #472", () => {
     // A guarda antiga via `depois=1` aqui (o fragmento do concorrente) e
     // desistia. É o caso que a v1.11.1 encontrou, e o único que muda.
@@ -257,7 +257,7 @@ describe("a guarda reconhece o corte pela forma dele", () => {
   });
 });
 
-describe("o que SOBRA da release também decide — e foi um cético que achou isto", () => {
+describe.skipIf(process.platform === "win32")("o que SOBRA da release também decide — e foi um cético que achou isto", () => {
   /**
    * A guarda antiga garantia, sem dizer, uma segunda propriedade: `depois==0`
    * significava que a versão anunciada dá conta de TUDO que estava pendente na
@@ -313,7 +313,7 @@ describe("o que SOBRA da release também decide — e foi um cético que achou i
   });
 });
 
-describe("a guarda recusa ALTO, e não em silêncio, quem apaga fragmento sem ser o App", () => {
+describe.skipIf(process.platform === "win32")("a guarda recusa ALTO, e não em silêncio, quem apaga fragmento sem ser o App", () => {
   it("apagar fragmento à mão, num commit não assinado pelo App, derruba o passo", () => {
     // A forja que a guarda antiga DEIXAVA passar: escrever a seção no CHANGELOG
     // e esvaziar o diretório criava a tag. Agora não basta apagar — é preciso a
@@ -339,3 +339,4 @@ describe("a guarda recusa ALTO, e não em silêncio, quem apaga fragmento sem se
     expect(decisaoPara(legitimo)).toBe("sim");
   });
 });
+
