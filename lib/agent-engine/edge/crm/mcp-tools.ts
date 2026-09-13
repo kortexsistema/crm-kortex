@@ -23,6 +23,7 @@ import { pickToolsFromMcp, type RuntimeHandoffSignal } from '@/lib/ai/runtime/to
 import { mintEphemeralToken, revokeEphemeralToken } from '@/lib/ai/runtime/mcp_token';
 import type { McpAuthResult } from '@/lib/mcp/auth';
 import type { McpContext } from '@/lib/mcp/types';
+import { buildDynamicSupabaseTools } from './dynamic-tools';
 
 import type { Logger } from '../../obs/logger';
 import type { CrmEdgeConfig } from './mcp-client';
@@ -120,6 +121,10 @@ export async function buildMcpTurnTools(
     // tela e o card parado. Quem passava era só o dispatcher antigo.
     pipelineIds: agentConfig.pipelineIds,
   });
+
+  // Inject dynamic tools (e.g. external Supabase integration)
+  const dynamicTools = await buildDynamicSupabaseTools(cfg.supabase, ctx);
+  Object.assign(tools, dynamicTools);
 
   return {
     tools,

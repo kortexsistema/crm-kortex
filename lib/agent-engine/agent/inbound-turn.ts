@@ -1131,7 +1131,8 @@ export function ritualBlocks(
     // cru na tela do cliente foi MEDIDO. Ela só arma quando o turno não tem
     // ferramenta de catálogo (ver `turnoProjeta`), porque é aí que esses ids
     // não têm uso nenhum. Nos demais, quem cobre é o gate de saída.
-    JSON.stringify(projeta ? projetarContexto(context) : context),
+    // Remove messages to avoid passing them as JSON; they are passed natively as ModelMessages
+    JSON.stringify(projeta ? { ...projetarContexto(context), messages: undefined } : { ...context, messages: undefined }),
   ];
 }
 
@@ -1310,45 +1311,53 @@ export async function runAgentTurn(
     tenant_id: job.organization_id,
     lead_id: leadIdDoJob,
   });
-  await comHandoffSeOrcamentoAcabar(
-    {
-      pool,
-      tenantId: job.organization_id,
-      leadId: leadIdDoJob,
-      conversationId: input.conversationId,
-      resumoDoCheckpoint: () =>
-        resumoDoCheckpointDuravel(pool, job.organization_id, leadIdDoJob, logDaEscolta),
-      // O canal nasce DENTRO da closure: instanciá-lo aqui faria todo turno feliz
-      // pagar por um adapter que só o caminho de erro usa. Sem `agentActorId` de
-      // propósito — quando o teto estoura antes da primeira chamada, não houve
-      // agente resolvido para creditar.
-      avisarLead: () =>
-        avisarLeadLendoOContato(
-          pool,
-          {
-            tenantId: job.organization_id,
-            leadId: leadIdDoJob,
-            conversationId: input.conversationId,
-            channelSessionId: input.channelSessionId,
-            jobId: job.id,
-          },
-          {
-            motivo: 'orcamento_de_ia',
-            channel: (deps.channel ?? ((p: pg.Pool) => new WahaChannelAdapter(p, deps.crmCfg)))(
-              pool,
-            ),
-            now: deps.clock?.() ?? new Date(),
-            log: logDaEscolta,
-            ...(deps.knobs.disclosureMode !== undefined
-              ? { disclosureMode: deps.knobs.disclosureMode }
-              : {}),
-            ...(deps.sleep !== undefined ? { sleep: deps.sleep } : {}),
-          },
-        ),
-      log: logDaEscolta,
-    },
-    () => executarTurnoDoAgente(deps, job, pool, ctx, input),
-  );
+
+  const client = await pool.connect();
+  try {
+    await client.query('SELECT pg_advisory_lock(hashtext($1))', [leadIdDoJob]);
+    await comHandoffSeOrcamentoAcabar(
+      {
+        pool,
+        tenantId: job.organization_id,
+        leadId: leadIdDoJob,
+        conversationId: input.conversationId,
+        resumoDoCheckpoint: () =>
+          resumoDoCheckpointDuravel(pool, job.organization_id, leadIdDoJob, logDaEscolta),
+        // O canal nasce DENTRO da closure: instanciá-lo aqui faria todo turno feliz
+        // pagar por um adapter que só o caminho de erro usa. Sem `agentActorId` de
+        // propósito — quando o teto estoura antes da primeira chamada, não houve
+        // agente resolvido para creditar.
+        avisarLead: () =>
+          avisarLeadLendoOContato(
+            pool,
+            {
+              tenantId: job.organization_id,
+              leadId: leadIdDoJob,
+              conversationId: input.conversationId,
+              channelSessionId: input.channelSessionId,
+              jobId: job.id,
+            },
+            {
+              motivo: 'orcamento_de_ia',
+              channel: (deps.channel ?? ((p: pg.Pool) => new WahaChannelAdapter(p, deps.crmCfg)))(
+                pool,
+              ),
+              now: deps.clock?.() ?? new Date(),
+              log: logDaEscolta,
+              ...(deps.knobs.disclosureMode !== undefined
+                ? { disclosureMode: deps.knobs.disclosureMode }
+                : {}),
+              ...(deps.sleep !== undefined ? { sleep: deps.sleep } : {}),
+            },
+          ),
+        log: logDaEscolta,
+      },
+      () => executarTurnoDoAgente(deps, job, pool, ctx, input),
+    );
+  } finally {
+    await client.query('SELECT pg_advisory_unlock(hashtext($1))', [leadIdDoJob]);
+    client.release();
+  }
 }
 
 /**
@@ -2698,7 +2707,7 @@ async function executarTurnoDoAgente(
             ok: true,
             status: 'estado_atualizado',
             stage: update.state.stage,
-            message: update.message,
+            message: update.message + " Estado atualizado com sucesso. Continue o atendimento e RESPONDA ao lead com send_message neste mesmo turno se ainda não o fez.",
           };
         } catch (err) {
           noteRunError(err instanceof Error ? err : new Error(String(err)));
@@ -3272,8 +3281,24 @@ async function executarTurnoDoAgente(
     // ponto só cobre os três — e alcança de carona a chamada de fechamento, que
     // reusa `openingTextOnly` e é onde nasce o `prazo` ISO da declaração.
     const agoraBlock = renderAgora(clock(), fusoDaOrg);
+
+    // REGRA DE SAUDAÇÃO (100 minutos)
+    let saudacaoBlock = '';
+    if (effectiveContext.messages.length > 1) {
+      const ultimaMsgAtiva = effectiveContext.messages[effectiveContext.messages.length - 2]!;
+      const diffMs = clock().getTime() - Date.parse(ultimaMsgAtiva.sent_at);
+      if (diffMs > 100 * 60 * 1000) {
+        saudacaoBlock = "## Saudação Obrigatória\nFaz mais de 100 minutos desde o último contato. Inicie sua resposta cumprimentando o cliente de forma natural (ex: Bom dia, Boa tarde).";
+      } else {
+        saudacaoBlock = "## Saudação Proibida\nA conversa está ativa e contínua. NÃO inicie sua resposta com saudações (Bom dia, Olá, etc). Responda diretamente ao ponto.";
+      }
+    } else {
+      saudacaoBlock = "## Saudação Obrigatória\nEste é o primeiro contato. Inicie sua resposta cumprimentando o cliente de forma natural (ex: Bom dia, Boa tarde).";
+    }
+
     const openingSuffixes = [
       agoraBlock,
+      saudacaoBlock,
       matchedSkillsBlock,
       stageHintBlock,
       splitHint,
@@ -3297,11 +3322,36 @@ async function executarTurnoDoAgente(
             multimodalInput: agentConfig?.multimodalInput ?? false,
             admin: deps.crmCfg.supabase,
           });
-    const openingTextOnly: ModelMessage[] = [{ role: 'user', content: openingText }];
-    const openingMessages: ModelMessage[] =
-      nativeParts.length === 0
-        ? openingTextOnly
-        : [{ role: 'user', content: [{ type: 'text', text: openingText }, ...nativeParts] }];
+    const chatHistory: ModelMessage[] = effectiveContext.messages.map(m => ({
+      role: m.direction === 'inbound' ? 'user' : 'assistant',
+      content: `[${m.sent_at}] ${m.body}`,
+    }));
+
+    let openingMessages: ModelMessage[] = chatHistory.map(m => ({ ...m }));
+    
+    // We append the openingText to the last message if it's from the user, 
+    // or add a new user message to hold the system context block.
+    if (openingMessages.length > 0 && openingMessages[openingMessages.length - 1]!.role === 'user') {
+      const lastMsg = openingMessages[openingMessages.length - 1]!;
+      if (nativeParts.length === 0) {
+        lastMsg.content = `${lastMsg.content}\n\n${openingText}`;
+      } else {
+        lastMsg.content = [{ type: 'text', text: `${lastMsg.content}\n\n${openingText}` }, ...nativeParts];
+      }
+    } else {
+      openingMessages.push(
+        nativeParts.length === 0
+          ? { role: 'user', content: openingText }
+          : { role: 'user', content: [{ type: 'text', text: openingText }, ...nativeParts] }
+      );
+    }
+    
+    const openingTextOnly: ModelMessage[] = chatHistory.map(m => ({ ...m }));
+    if (openingTextOnly.length > 0 && openingTextOnly[openingTextOnly.length - 1]!.role === 'user') {
+      openingTextOnly[openingTextOnly.length - 1]!.content = `${openingTextOnly[openingTextOnly.length - 1]!.content}\n\n${openingText}`;
+    } else {
+      openingTextOnly.push({ role: 'user', content: openingText });
+    }
 
     // O modelo decide tools livremente dentro do teto de steps (knob AGENT_MAX_STEPS).
     //

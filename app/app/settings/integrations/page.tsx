@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useT } from "@/hooks/i18n/useT";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { saveExternalSupabase } from "@/app/actions/integrations/saveExternalSupabase";
 import { testExternalSupabase } from "@/app/actions/integrations/testExternalSupabase";
+import { getExternalSupabaseConfig } from "@/app/actions/integrations/getExternalSupabaseConfig";
 import { Badge } from "@/components/ui/badge";
+import { SupabaseTablesList } from "@/components/settings/SupabaseTablesList";
 
 export default function IntegrationsSettingsPage() {
   const t = useT();
@@ -18,6 +20,27 @@ export default function IntegrationsSettingsPage() {
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  
+  const [integrationId, setIntegrationId] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
+  const loadConfig = async () => {
+    try {
+      const res = await getExternalSupabaseConfig();
+      if (res.ok && res.data) {
+        setIntegrationId(res.data.id);
+        setUrl(res.data.url);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +53,7 @@ export default function IntegrationsSettingsPage() {
       const res = await saveExternalSupabase(url, apiKey);
       if (res.ok) {
         toast.success(t("Conexão salva com sucesso!"));
+        loadConfig(); // Reload to get integrationId
       } else {
         toast.error(res.error?.message || t("Erro ao salvar conexão."));
       }
@@ -63,6 +87,10 @@ export default function IntegrationsSettingsPage() {
       setTesting(false);
     }
   };
+
+  if (initialLoading) {
+    return <div className="p-8 text-center text-muted-foreground">{t("Carregando...")}</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -101,6 +129,11 @@ export default function IntegrationsSettingsPage() {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />
+              {integrationId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t("Uma chave já foi salva. Preencha apenas se desejar alterá-la.")}
+                </p>
+              )}
             </div>
 
             {testResult && (
@@ -125,6 +158,11 @@ export default function IntegrationsSettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Show tables configuration only if integration is saved */}
+      {integrationId && (
+        <SupabaseTablesList integrationId={integrationId} />
+      )}
     </div>
   );
 }
