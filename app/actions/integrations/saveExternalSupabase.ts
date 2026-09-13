@@ -39,6 +39,7 @@ export async function saveExternalSupabase(url: string, apiKey: string) {
         organization_id: activeOrg.orgId,
         provider: "external_supabase",
         oauth_access_token_encrypted: encrypted.data, // Re-using the oauth field for the api key
+        webhook_secret_encrypted: "", // Dummy value to satisfy NOT NULL constraint
         store_metadata: { supabase_url: url },
         status: "healthy",
         last_sync_at: new Date().toISOString(),
