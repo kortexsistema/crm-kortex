@@ -23522,3 +23522,22 @@ grant execute on function public.fn_lgpd_cascade_redact_contact(uuid, uuid, uuid
 grant execute on function public.fn_update_budget_consumption() to service_role;
 
 
+CREATE OR REPLACE FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  UPDATE ai_agent_versions
+  SET knowledge_source_ids = array_remove(knowledge_source_ids, p_source_id)
+  WHERE organization_id = p_org_id
+    AND p_source_id = ANY(knowledge_source_ids)
+    AND status != 'superseded';
+END;
+$$;
+
+ALTER FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") OWNER TO "postgres";
+
+REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM PUBLIC;
+REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM "anon";
+REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") TO "service_role";

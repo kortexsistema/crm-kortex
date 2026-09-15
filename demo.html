@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Experimente a IA ao vivo - Demonstração Multi-Nicho</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0f172a; /* slate-900 */
+      --bg-secondary: #1e293b; /* slate-800 */
+      --text-primary: #f8fafc; /* slate-50 */
+      --text-secondary: #94a3b8; /* slate-400 */
+      --accent-color: #3b82f6; /* blue-500 */
+      --accent-hover: #2563eb; /* blue-600 */
+      --accent-glow: rgba(59, 130, 246, 0.4);
+      --glass-bg: rgba(30, 41, 59, 0.6);
+      --glass-border: rgba(255, 255, 255, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4rem 1rem;
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(59, 130, 246, 0.15), transparent 35%),
+        radial-gradient(circle at 85% 60%, rgba(139, 92, 246, 0.15), transparent 35%);
+      background-attachment: fixed;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+      animation: fadeInDown 0.8s ease-out;
+    }
+
+    h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #60a5fa 0%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      font-size: 1.15rem;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    
+    .tabs-container {
+      display: flex;
+      gap: 0.5rem;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 0.5rem;
+      border-radius: 9999px;
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeInUp 0.8s ease-out;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 0.75rem 1.5rem;
+      border-radius: 9999px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .tab-btn.active {
+      background: var(--accent-color);
+      color: #fff;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+    
+    .sandbox-area {
+      width: 100%;
+      max-width: 1000px;
+      height: 650px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: zoomIn 0.8s ease-out;
+    }
+
+    .demo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.2rem 1.5rem;
+      background: rgba(15, 23, 42, 0.9);
+      border-bottom: 1px solid var(--glass-border);
+      font-size: 0.95rem;
+    }
+
+    .demo-header-left {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #10b981; /* emerald-500 */
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+      animation: pulse 2s infinite;
+    }
+
+    .demo-header-right {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      max-width: 55%;
+      text-align: right;
+      line-height: 1.4;
+    }
+
+    .demo-body {
+      flex: 1;
+      width: 100%;
+      background: #111b21; /* Fundo escuro padrão similar ao do WhatsApp Web para um contraste melhor com iframes */
+      position: relative;
+    }
+
+    .demo-body iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      transition: opacity 0.3s ease;
+    }
+
+    /* Keyframes */
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes zoomIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      body { padding: 2rem 1rem; }
+      h1 { font-size: 2.25rem; }
+      .sandbox-area { height: 600px; border-radius: 12px; }
+      .demo-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+      .demo-header-right { max-width: 100%; text-align: left; }
+    }
+
+    @media (max-width: 640px) {
+      .tabs-container {
+        border-radius: 16px;
+        padding: 0.5rem;
+      }
+      .tab-btn {
+        flex: 1 1 calc(50% - 0.5rem);
+        text-align: center;
+        border-radius: 10px;
+        padding: 0.6rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Experimente a IA ao vivo</h1>
+    <p class="subtitle">Selecione um nicho abaixo e interaja com nossos agentes de demonstração especializados em tempo real.</p>
+  </header>
+
+  <nav class="tabs-container">
+    <button class="tab-btn active" data-target="pizzaria">Pizzaria & Delivery</button>
+    <button class="tab-btn" data-target="clinica">Clínica Médica</button>
+    <button class="tab-btn" data-target="advocacia">Advocacia & Jurídico</button>
+    <button class="tab-btn" data-target="imobiliaria">Imobiliária</button>
+  </nav>
+
+  <main class="sandbox-area">
+    <div class="demo-header">
+      <div class="demo-header-left">
+        <div class="status-dot"></div>
+        Demonstração Ativa: <span id="demo-active-title" style="margin-left: 4px; color: var(--accent-color);">Pizzaria & Delivery</span>
+      </div>
+      <div class="demo-header-right" id="demo-active-desc">
+        Peça uma pizza e veja a facilidade de como tudo acontece. É simples e prático.
+      </div>
+    </div>
+    
+    <div class="demo-body">
+      <!-- O iframe carrega dinamicamente a URL do webchat -->
+      <!-- Troque as URLs no mapeamento JavaScript abaixo -->
+      <iframe id="chat-iframe" src="https://seulink-chat-pizzaria.com" title="Demonstração do Agente de IA"></iframe>
+    </div>
+  </main>
+
+  <script>
+    // --------------------------------------------------------
+    // MAPEAMENTO DAS URLs DOS AGENTES KORTEX (WEBCHAT)
+    // --------------------------------------------------------
+    const agentConfigs = {
+      pizzaria: {
+        title: "Pizzaria & Delivery",
+        desc: "Peça uma pizza e veja a facilidade de como tudo acontece. É simples e prático.",
+        url: "https://seulink-chat-pizzaria.com" // <- INSIRA A URL DO SEU WEBCHAT AQUI
+      },
+      clinica: {
+        title: "Clínica Médica",
+        desc: "Agendamento de consultas, dúvidas frequentes e triagem inicial de pacientes.",
+        url: "https://seulink-chat-clinica.com" // <- INSIRA A URL DO SEU WEBCHAT AQUI
+      },
+      advocacia: {
+        title: "Advocacia & Jurídico",
+        desc: "Simulação de triagem de clientes e cálculo preliminar de tempo de contribuição.",
+        url: "https://seulink-chat-advocacia.com" // <- INSIRA A URL DO SEU WEBCHAT AQUI
+      },
+      imobiliaria: {
+        title: "Imobiliária",
+        desc: "Busca inteligente de imóveis, captação de leads e agendamento de visitas.",
+        url: "https://seulink-chat-imobiliaria.com" // <- INSIRA A URL DO SEU WEBCHAT AQUI
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      const activeTitle = document.getElementById('demo-active-title');
+      const activeDesc = document.getElementById('demo-active-desc');
+      const chatIframe = document.getElementById('chat-iframe');
+
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          // Verifica se a aba já está ativa para não recarregar o iframe
+          if(btn.classList.contains('active')) return;
+
+          // Remove classe active de todas as abas
+          tabBtns.forEach(b => b.classList.remove('active'));
+          // Adiciona classe active na aba clicada
+          btn.classList.add('active');
+
+          // Recupera a chave do nicho
+          const targetId = btn.getAttribute('data-target');
+          const config = agentConfigs[targetId];
+
+          if (config) {
+            // Efeito Fade Out no iframe
+            chatIframe.style.opacity = '0';
+            
+            setTimeout(() => {
+              // Atualiza os textos do header dinâmico
+              activeTitle.textContent = config.title;
+              activeDesc.textContent = config.desc;
+              
+              // Atualiza a URL do iframe com o Webchat real
+              chatIframe.src = config.url;
+              
+              // Efeito Fade In
+              chatIframe.style.opacity = '1';
+            }, 300); // 300ms aguardando a transição de opacity do CSS
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

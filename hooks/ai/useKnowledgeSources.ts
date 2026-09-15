@@ -137,3 +137,41 @@ export function useArquivarSource() {
     },
   });
 }
+
+export function useDesarquivarSource() {
+  const t = useT();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ["ai", "knowledge", "sources", "desarquivar"],
+    mutationFn: async (id: string) => {
+      await apiClient.post(`/api/v1/ai/knowledge/sources/${id}/unarchive`);
+      return id;
+    },
+    onSuccess: () => {
+      toast.success(t("Material desarquivado com sucesso."));
+    },
+    onError: (err) => showApiError(err),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: sourcesQueryKey() });
+    },
+  });
+}
+
+export function useExcluirDefinitivamenteSource() {
+  const t = useT();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ["ai", "knowledge", "sources", "excluir-definitivamente"],
+    mutationFn: async (id: string) => {
+      await apiClient.delete(`/api/v1/ai/knowledge/sources/${id}?permanent=true`);
+      return id;
+    },
+    onSuccess: () => {
+      toast.success(t("Material excluído permanentemente."));
+    },
+    onError: (err) => showApiError(err),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: sourcesQueryKey() });
+    },
+  });
+}

@@ -247,7 +247,7 @@ export async function PATCH(
 // ---------------------------------------------------------------------------
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const supportDenied = await requireSupportWrite();
@@ -255,6 +255,9 @@ export async function DELETE(
 
   const requestId = randomUUID();
   const { id: sourceId } = await params;
+
+  const url = new URL(req.url);
+  const isPermanent = url.searchParams.get("permanent") === "true";
 
   const ctx = await resolveContext(requestId);
   if (ctx.error) return ctx.error;
@@ -278,6 +281,32 @@ export async function DELETE(
   }
 
   const admin = createAdminClient();
+
+  if (isPermanent) {
+    const { error: rpcErr } = await admin.rpc("remove_knowledge_source_from_agents", {
+      p_source_id: sourceId,
+      p_org_id: activeOrg.orgId,
+    });
+
+    if (rpcErr) {
+      console.error("[ai-knowledge-sources] remove_knowledge_source_from_agents failed:", rpcErr.message);
+      return fail("internal_error", "Erro ao limpar referências do material.", 500, { requestId });
+    }
+
+    const { error: delErr } = await admin
+      .from("ai_knowledge_sources")
+      .delete()
+      .eq("id", sourceId)
+      .eq("organization_id", activeOrg.orgId);
+
+    if (delErr) {
+      console.error("[ai-knowledge-sources] permanent delete failed:", delErr.message);
+      return fail("internal_error", "Erro ao excluir o material definitivamente.", 500, { requestId });
+    }
+
+    return ok({ id: sourceId, status: "deleted" }, { requestId });
+  }
+
   // `is_active` JUNTO, e não só `status`.
   //
   // Nenhuma linha do repo jamais escreveu `is_active = false`. Enquanto existia

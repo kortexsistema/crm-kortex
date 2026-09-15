@@ -11,6 +11,8 @@ import {
   chaveQueryKey,
   sourcesQueryKey,
   useArquivarSource,
+  useDesarquivarSource,
+  useExcluirDefinitivamenteSource,
   useEstadoDaChave,
   useKnowledgeSources,
   useReindexSource,
@@ -44,6 +46,8 @@ export function AcervoClient({ initialSources, initialChave, agentes }: Props) {
   const { data: chave } = useEstadoDaChave(initialChave);
   const reindex = useReindexSource();
   const arquivar = useArquivarSource();
+  const desarquivar = useDesarquivarSource();
+  const excluir = useExcluirDefinitivamenteSource();
 
   const recarregar = useCallback(() => {
     qc.invalidateQueries({ queryKey: sourcesQueryKey() });
@@ -130,10 +134,32 @@ export function AcervoClient({ initialSources, initialChave, agentes }: Props) {
               "Material arquivado não é consultado por nenhum assistente, e não é apagado — o histórico do que o agente já soube continua existindo.",
             )}
           </p>
-          <ul className="mt-3 space-y-1 text-sm">
+          <ul className="mt-3 space-y-2 text-sm">
             {arquivados.map((s) => (
-              <li key={s.id} className="text-text-muted">
-                {s.name}
+              <li key={s.id} className="flex items-center justify-between text-text-muted rounded-md bg-ui-surface p-2">
+                <span>{s.name}</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => desarquivar.mutate(s.id)}
+                    disabled={desarquivar.isPending}
+                  >
+                    {t("Desarquivar")}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (window.confirm(t("Tem certeza? Esta ação removerá a fonte permanentemente e a apagará dos agentes que a utilizam."))) {
+                        excluir.mutate(s.id);
+                      }
+                    }}
+                    disabled={excluir.isPending}
+                  >
+                    {t("Excluir")}
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>
