@@ -26,6 +26,7 @@ import {
   usePublishOrgMemory,
   useCreateOrgMemoryEntry,
   useSetOrgMemoryEntryStatus,
+  useExcluirDefinitivamenteOrgMemoryEntry,
   useOrgMemoryVersion,
   type OrgMemoryState,
   type OrgMemoryVersionMeta,
@@ -65,6 +66,7 @@ export function OrgMemoryClient({ initialState }: Props) {
   const publish = usePublishOrgMemory();
   const createEntry = useCreateOrgMemoryEntry();
   const setStatus = useSetOrgMemoryEntryStatus();
+  const excluir = useExcluirDefinitivamenteOrgMemoryEntry();
   const versionDetail = useOrgMemoryVersion(historyTarget?.id ?? null);
 
   // Sincroniza o textarea quando a versão ativa mudar sob nós (ex.: outro admin publicou).
@@ -120,7 +122,7 @@ export function OrgMemoryClient({ initialState }: Props) {
       { id, status: next },
       {
         onSuccess: () => {
-          toast.success(next === "archived" ? t("Aprendizado arquivado.") : t("Aprendizado reativado."));
+          toast.success(next === "archived" ? t("Aprendizado arquivado.") : t("Aprendizado desarquivado."));
         },
         onError: showApiError,
       },
@@ -294,7 +296,7 @@ export function OrgMemoryClient({ initialState }: Props) {
                     <span className="ml-auto text-xs text-muted-foreground">{formatDate(entry.created_at, tagDoIdioma)}</span>
                   </div>
                   <p className="whitespace-pre-wrap text-text-muted">{entry.body}</p>
-                  <div className="flex sm:justify-end">
+                  <div className="flex sm:justify-end gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -310,10 +312,34 @@ export function OrgMemoryClient({ initialState }: Props) {
                         </>
                       ) : (
                         <>
-                          <ArrowsClockwise /> {t("Reativar")}
+                          <ArrowsClockwise /> {t("Desarquivar")}
                         </>
                       )}
                     </Button>
+                    {entry.status === "archived" && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={excluir.isPending}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              t(
+                                "Tem certeza? Esta ação removerá o aprendizado permanentemente e a alteração passará a valer na próxima publicação da memória da organização.",
+                              ),
+                            )
+                          ) {
+                            excluir.mutate(entry.id, {
+                              onSuccess: () => toast.success(t("Aprendizado excluído permanentemente.")),
+                              onError: showApiError,
+                            });
+                          }
+                        }}
+                        className="w-full sm:w-auto"
+                      >
+                        {t("Excluir")}
+                      </Button>
+                    )}
                   </div>
                 </li>
               ))}

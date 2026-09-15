@@ -71,3 +71,53 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
 
   return ok({ id: data.id, status: data.status }, { requestId });
 }
+
+export async function DELETE(req: NextRequest, ctx: Ctx): Promise<Response> {
+  const supportDenied = await requireSupportWrite();
+  if (supportDenied) return supportDenied;
+
+  const requestId = randomUUID();
+  const { id } = await ctx.params;
+  if (!UUID_RX.test(id)) {
+    return fail("invalid_request", "id inválido.", 400, { requestId });
+  }
+
+  const url = new URL(req.url);
+  const isPermanent = url.searchParams.get("permanent") === "true";
+  
+  if (!isPermanent) {
+    return fail("invalid_request", "Para arquivamento, use a rota PATCH. Para exclusão permanente, envie ?permanent=true", 400, { requestId });
+  }
+
+  const authz = await requireRole("manager", { requestId, resource: "org_memory" });
+  if (!authz.ok) return authz.response;
+  const t = (texto: string) => traduzir(texto, authz.user.idioma);
+  const { user: authUser, org } = authz;
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("org_memory_entries")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", org.orgId)
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    return fail("not_found", t("Entrada de memória não encontrada nesta organização."), 404, {
+      requestId,
+    });
+  }
+
+  await audit({
+    action: "ai.org_memory_entry_deleted",
+    actorUserId: authUser.id,
+    organizationId: org.orgId,
+    resourceType: "org_memory_entries",
+    resourceId: id,
+    requestId,
+    metadata: { permanent: true },
+  });
+
+  return ok({ id: data.id, status: "deleted" }, { requestId });
+}

@@ -70,6 +70,15 @@ export function useSetOrgMemoryEntryStatus() {
   });
 }
 
+export function useExcluirDefinitivamenteOrgMemoryEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiClient.delete<{ data: { id: string; status: string } }>(`/api/v1/ai/memory/entries/${id}?permanent=true`),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
+
 /** Conteúdo de uma versão do histórico, buscado sob demanda ao abrir o Dialog. */
 export function useOrgMemoryVersion(id: string | null) {
   return useQuery({
