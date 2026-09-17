@@ -20,10 +20,11 @@ function fmt(seconds: number): string {
 interface Props {
   messageId: string;
   isOutbound: boolean;
+  transcription?: string | null;
 }
 
 /** Player de voz estilo WhatsApp: play/pause, progresso seekável, tempo, 1x/1.5x/2x. */
-export function AudioPlayer({ messageId, isOutbound }: Props) {
+export function AudioPlayer({ messageId, isOutbound, transcription }: Props) {
   const t = useT();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -82,54 +83,61 @@ export function AudioPlayer({ messageId, isOutbound }: Props) {
   };
 
   return (
-    <div className="flex w-60 items-center gap-2 py-1">
-      <audio ref={audioRef} src={mediaSrc(messageId)} preload="metadata" />
-      <button
-        type="button"
-        aria-label={playing ? t("Pausar áudio") : t("Reproduzir áudio")}
-        onClick={toggle}
-        className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors",
-          isOutbound
-            ? "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30"
-            : "bg-primary/10 text-primary hover:bg-primary/20",
-        )}
-      >
-        {playing ? (
-          <Pause size={16} weight="fill" aria-hidden />
-        ) : (
-          <Play size={16} weight="fill" aria-hidden />
-        )}
-      </button>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <input
-          type="range"
-          aria-label={t("Progresso do áudio")}
-          aria-valuetext={`${fmt(current)} ${t("de")} ${fmt(safeDuration)}`}
-          min="0"
-          max={String(safeDuration || 1)}
-          step="0.1"
-          value={current}
-          onChange={(e) => seek(Number(e.target.value))}
-          className="h-1 w-full cursor-pointer accent-current"
-        />
-        <span className="text-[10px] tabular-nums opacity-70">
-          {fmt(current)} / {fmt(safeDuration)}
-        </span>
+    <div className="flex flex-col gap-2">
+      <div className="flex w-60 items-center gap-2 py-1">
+        <audio ref={audioRef} src={mediaSrc(messageId)} preload="metadata" />
+        <button
+          type="button"
+          aria-label={playing ? t("Pausar áudio") : t("Reproduzir áudio")}
+          onClick={toggle}
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors",
+            isOutbound
+              ? "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30"
+              : "bg-primary/10 text-primary hover:bg-primary/20",
+          )}
+        >
+          {playing ? (
+            <Pause size={16} weight="fill" aria-hidden />
+          ) : (
+            <Play size={16} weight="fill" aria-hidden />
+          )}
+        </button>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <input
+            type="range"
+            aria-label={t("Progresso do áudio")}
+            aria-valuetext={`${fmt(current)} ${t("de")} ${fmt(safeDuration)}`}
+            min="0"
+            max={String(safeDuration || 1)}
+            step="0.1"
+            value={current}
+            onChange={(e) => seek(Number(e.target.value))}
+            className="h-1 w-full cursor-pointer accent-current"
+          />
+          <span className="text-[10px] tabular-nums opacity-70">
+            {fmt(current)} / {fmt(safeDuration)}
+          </span>
+        </div>
+        <button
+          type="button"
+          aria-label={`${t("Velocidade de reprodução")}: ${RATES[rateIdx]}x`}
+          onClick={cycleRate}
+          className={cn(
+            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums transition-colors",
+            isOutbound
+              ? "bg-primary-foreground/20 text-primary-foreground"
+              : "bg-primary/10 text-primary",
+          )}
+        >
+          {RATES[rateIdx]}x
+        </button>
       </div>
-      <button
-        type="button"
-        aria-label={`${t("Velocidade de reprodução")}: ${RATES[rateIdx]}x`}
-        onClick={cycleRate}
-        className={cn(
-          "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums transition-colors",
-          isOutbound
-            ? "bg-primary-foreground/20 text-primary-foreground"
-            : "bg-primary/10 text-primary",
-        )}
-      >
-        {RATES[rateIdx]}x
-      </button>
+      {transcription && (
+        <div className="text-xs italic opacity-80 w-60 max-w-full break-words">
+          {transcription}
+        </div>
+      )}
     </div>
   );
 }

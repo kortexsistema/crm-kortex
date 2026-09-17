@@ -144,7 +144,7 @@ export function useDesarquivarSource() {
   return useMutation({
     mutationKey: ["ai", "knowledge", "sources", "desarquivar"],
     mutationFn: async (id: string) => {
-      await apiClient.post(`/api/v1/ai/knowledge/sources/${id}/unarchive`);
+      await apiClient.post(`/api/v1/ai/knowledge/sources/${id}/unarchive`, undefined);
       return id;
     },
     onSuccess: () => {

@@ -3,6 +3,9 @@ import { traduzir } from "@/lib/i18n/dicionario";
 import { Card } from "@/components/ui/card";
 import { vapidPronto } from "@/lib/notifications/vapid";
 import { NotificationPrefsClient } from "./_client";
+import { HandoffAlertClient } from "./_alertClient";
+import { resolveActiveOrg } from "@/lib/auth/server";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +50,19 @@ export default async function NotificationsPage() {
   const idioma = user.idioma;
   const t = (texto: string) => traduzir(texto, idioma);
   const pushPronto = vapidPronto();
+
+  const activeOrg = await resolveActiveOrg(user);
+  let initialAlertPhone = "";
+  if (activeOrg) {
+    const supabase = await createClient();
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("settings")
+      .eq("id", activeOrg.orgId)
+      .single();
+    const settings = org?.settings as Record<string, unknown>;
+    initialAlertPhone = (settings?.handoff_alert_phone as string) || "";
+  }
 
   return (
     <div className="flex h-full flex-col gap-6 p-6">
@@ -93,6 +109,8 @@ export default async function NotificationsPage() {
       )}
 
       <NotificationPrefsClient />
+      
+      {activeOrg && <HandoffAlertClient initialPhone={initialAlertPhone} />}
     </div>
   );
 }

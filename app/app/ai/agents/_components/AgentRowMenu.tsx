@@ -46,7 +46,7 @@ export function AgentRowMenu({ agent }: Props) {
   const [archiveOpen, setArchiveOpen] = useState(false);
 
   const status = deriveAgentStatus(agent);
-  const isPaused = status === "paused" || status === "draft";
+  const isPaused = status === "paused";
   const isArchived = status === "archived";
 
   const run = (label: string, action: () => Promise<{ ok: boolean; error?: string; message?: string }>) => {
@@ -102,14 +102,14 @@ export function AgentRowMenu({ agent }: Props) {
           </DropdownMenuItem>
           {isPaused ? (
             <DropdownMenuItem
-              disabled={isArchived || agent.kind === "mcp_agent"}
+              disabled={isArchived}
               onSelect={() => run(t("Agent reativado."), () => unpauseAgentAction(agent.id))}
             >
               <Play size={14} aria-hidden className="mr-2" /> {t("Despausar")}
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem
-              disabled={isArchived}
+              disabled={isArchived || status === "draft"}
               onSelect={() => run(t("Agent pausado."), () => pauseAgentAction(agent.id))}
             >
               <Pause size={14} aria-hidden className="mr-2" /> {t("Pausar")}

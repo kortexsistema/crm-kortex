@@ -32,6 +32,7 @@ export type AgentStatus = "published" | "draft" | "paused" | "archived" | "inval
  * filtros da lista o consomem; ele deixou de ter emissor aqui.
  */
 export function deriveAgentStatus(agent: AgentRow): AgentStatus {
+  if (agent.paused_at != null) return "paused";
   // `AgentRow` traz `paused_at` como opcional (o tipo vem da linha do banco),
   // e `FatosDoAgente` o exige justamente para que consulta sem a coluna não
   // compile. Aqui a página SELECIONA a coluna, então normalizar é honesto.

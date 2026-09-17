@@ -176,6 +176,7 @@ export const AUDIT_ACTIONS = [
   "ai.org_memory_published",
   "ai.org_memory_entry_created",
   "ai.org_memory_entry_updated",
+  "ai.org_memory_entry_deleted",
   /** Provedor/modelo de um ponto do sistema que usa IA foi trocado no painel. */
   "ai.purpose_binding_updated",
   // Ligar/desligar uma das duas verificações que consultam modelo. Auditável

@@ -22,7 +22,13 @@ export function MediaRenderer({ message }: { message: Message }) {
     case "sticker":
       return <StickerMedia messageId={message.id} />;
     case "audio":
-      return <AudioPlayer messageId={message.id} isOutbound={isOutbound} />;
+      return (
+        <AudioPlayer
+          messageId={message.id}
+          isOutbound={isOutbound}
+          transcription={message.media_derived_status === "ready" ? message.media_derived_text : null}
+        />
+      );
     case "video":
       return <VideoMedia messageId={message.id} />;
     case "contact":

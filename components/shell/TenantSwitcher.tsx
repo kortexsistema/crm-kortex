@@ -37,32 +37,56 @@ export function TenantSwitcher() {
     }
   };
 
-  if (user.organizations.length <= 1 && !user.is_platform_admin) return null;
+  const endSupport = async () => {
+    flushSync(() => { setPending(true); transition.begin(t("Encerrando acompanhamento…")); });
+    try {
+      const res = await fetch("/api/v1/admin/impersonate/end", { method: "POST" });
+      if (!res.ok) throw new Error(t("Não foi possível encerrar o acompanhamento. Tente novamente."));
+      localStorage.setItem("support-context-transition", String(Date.now()));
+      window.location.assign("/app/inbox");
+    } catch (error) {
+      transition.cancel(); setPending(false);
+      toast.error(error instanceof Error ? error.message : t("Falha de conexão."));
+    }
+  };
+
+  if (user.organizations.length <= 1 && !user.is_platform_admin && !user.support) return null;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" disabled={isPending || !!user.support} className="gap-2" title={user.support ? "Saia do acompanhamento para trocar de organização" : undefined} data-testid="tenant-switcher">
+        <Button variant="ghost" size="sm" disabled={isPending} className="gap-2" data-testid="tenant-switcher">
           <Storefront size={16} weight="duotone" aria-hidden />
           <span className="max-w-[160px] truncate">{active?.name ?? "Selecionar org"}</span>
           <CaretDown size={12} aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[220px]">
-        {user.organizations.map((org) => (
+        {user.support ? (
           <DropdownMenuItem
-            key={org.organization_id}
-            data-testid={`tenant-switcher-item-${org.organization_id}`}
-            onClick={() => { void switchTo(org.organization_id); }}
-            className="flex items-center justify-between"
+            className="flex items-center text-amber-600 font-medium"
+            onClick={() => { void endSupport(); }}
           >
-            <span className="truncate">{org.organization_name}</span>
-            {active?.orgId === org.organization_id && <span className="text-xs text-muted-foreground">✓</span>}
+            {t("Sair do acompanhamento (Voltar ao Admin)")}
           </DropdownMenuItem>
-        ))}
-        {user.is_platform_admin && <DropdownMenuItem asChild>
-          <Link href="/admin/tenants">{t("Gerenciar organizações")}</Link>
-        </DropdownMenuItem>}
+        ) : (
+          <>
+            {user.organizations.map((org) => (
+              <DropdownMenuItem
+                key={org.organization_id}
+                data-testid={`tenant-switcher-item-${org.organization_id}`}
+                onClick={() => { void switchTo(org.organization_id); }}
+                className="flex items-center justify-between"
+              >
+                <span className="truncate">{org.organization_name}</span>
+                {active?.orgId === org.organization_id && <span className="text-xs text-muted-foreground">✓</span>}
+              </DropdownMenuItem>
+            ))}
+            {user.is_platform_admin && <DropdownMenuItem asChild>
+              <Link href="/admin/tenants">{t("Gerenciar organizações")}</Link>
+            </DropdownMenuItem>}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

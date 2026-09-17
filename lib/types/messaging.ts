@@ -77,6 +77,8 @@ export interface Message {
   delivered_at: string | null;
   read_at: string | null;
   metadata: Record<string, unknown>;
+  media_derived_text: string | null;
+  media_derived_status: string | null;
   /**
    * Quando o AUTOR editou no aplicativo (migration 0143). `body` já é a versão
    * nova; este campo existe para a tela poder DIZER que houve edição — ler um

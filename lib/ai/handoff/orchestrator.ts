@@ -88,7 +88,7 @@ export async function triggerHandoff(
     // paralelo. Skip silenciosamente.
     const { data: convNow } = await admin
       .from("conversations")
-      .select("id, organization_id, contact_id, last_handoff_at, last_handoff_reason")
+      .select("id, organization_id, contact_id, last_handoff_at, last_handoff_reason, channel_session_id")
       .eq("id", input.conversationId)
       .eq("organization_id", input.organizationId)
       .maybeSingle();
@@ -102,6 +102,7 @@ export async function triggerHandoff(
       organization_id: string;
       last_handoff_at: string | null;
       last_handoff_reason: string | null;
+      channel_session_id: string | null;
     };
     const c = convNow as unknown as ConvNowRow;
 
@@ -351,6 +352,85 @@ export async function triggerHandoff(
           error: err instanceof Error ? err.message.slice(0, 200) : String(err),
         });
       }
+    }
+
+    // Step 7 — Alerta via WhatsApp para o gestor (fire-and-forget).
+    try {
+      const { data: orgRow } = await admin
+        .from("organizations")
+        .select("settings")
+        .eq("id", input.organizationId)
+        .maybeSingle();
+
+      const settings = orgRow?.settings as Record<string, unknown> | undefined;
+      const alertPhone = settings?.handoff_alert_phone as string | undefined;
+
+      if (alertPhone) {
+        // Buscar a última mensagem do lead para contexto
+        let ultimaMensagem = "[Não encontrada]";
+        try {
+          const { data: msgs } = await admin
+            .from("messages")
+            .select("body")
+            .eq("conversation_id", input.conversationId)
+            .eq("actor_kind", "contact")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (msgs?.body) ultimaMensagem = msgs.body;
+        } catch (e) {
+          // ignora
+        }
+
+        // Descobrir qual sessão WAHA usar
+        let wahaSessionName: string | null = null;
+        if (c.channel_session_id) {
+          const { data: sess } = await admin
+            .from("channel_sessions")
+            .select("waha_session_name")
+            .eq("id", c.channel_session_id)
+            .maybeSingle();
+          if (sess?.waha_session_name) wahaSessionName = sess.waha_session_name;
+        }
+
+        // Fallback para a primeira sessão ativa
+        if (!wahaSessionName) {
+          const { data: sessFb } = await admin
+            .from("channel_sessions")
+            .select("waha_session_name")
+            .eq("organization_id", input.organizationId)
+            .is("archived_at", null)
+            .limit(1)
+            .maybeSingle();
+          if (sessFb?.waha_session_name) wahaSessionName = sessFb.waha_session_name;
+        }
+
+        if (wahaSessionName) {
+          const motivoLegivel = input.reason === "requested_human" ? "o lead pediu atendimento humano" :
+            input.reason === "orcamento_de_ia" ? "o orçamento de IA acabou" : 
+            input.reason === "low_sentiment" ? "o cliente demonstrou irritação (sentimento baixo)" : input.reason;
+
+          const telefoneGestor = alertPhone.replace(/\D/g, "");
+          const textoAlerta = `🚨 *Kortex Alerta: Handoff Solicitado!*\n\nUma conversa passou para atendimento humano porque ${motivoLegivel}.\n\n*Última mensagem do cliente:*\n"${ultimaMensagem}"\n\n🔗 Acesse o Inbox para responder:\nhttps://crmkortex.app/app/inbox`;
+
+          const { sendWAHA } = await import("@/lib/waha/send");
+          await sendWAHA({
+            sessionName: wahaSessionName,
+            chatId: `${telefoneGestor}@c.us`,
+            text: textoAlerta,
+          }).catch(err => {
+            logger.warn("[handoff-orchestrator] sendWAHA failed", {
+              conversation_id: input.conversationId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+        }
+      }
+    } catch (err) {
+      logger.warn("[handoff-orchestrator] alert to manager failed", {
+        conversation_id: input.conversationId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     return { triggered: true, reason: input.reason };
