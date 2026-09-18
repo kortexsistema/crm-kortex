@@ -37,6 +37,7 @@ const triggerConfigSchema = z
             start: z.string(),
             end: z.string(),
             weekdays: z.array(z.number().int().min(0).max(6)),
+            out_of_office_message: z.string().nullable().optional(),
           })
           .nullable()
           .optional()

@@ -41,6 +41,8 @@ export interface JanelaDeAtendimento {
   end: string;
   /** 0=domingo … 6=sábado, sem repetição, ao menos um. */
   weekdays: number[];
+  /** Mensagem estática para responder a contatos fora de hora (spec OOO). */
+  outOfOfficeMessage?: string;
 }
 
 const HORA_RX = /^([01][0-9]|2[0-3]):([0-5][0-9])$/;
@@ -62,11 +64,12 @@ export function lerJanelaDeAtendimento(triggerConfig: unknown): JanelaDeAtendime
   const bh = (filters as { business_hours?: unknown }).business_hours;
   if (typeof bh !== 'object' || bh === null) return null;
 
-  const { timezone, start, end, weekdays } = bh as {
+  const { timezone, start, end, weekdays, out_of_office_message } = bh as {
     timezone?: unknown;
     start?: unknown;
     end?: unknown;
     weekdays?: unknown;
+    out_of_office_message?: unknown;
   };
   if (typeof timezone !== 'string' || timezone.trim() === '') return null;
   if (typeof start !== 'string' || typeof end !== 'string') return null;
@@ -94,7 +97,12 @@ export function lerJanelaDeAtendimento(triggerConfig: unknown): JanelaDeAtendime
     return null;
   }
 
-  return { timezone, start, end, weekdays: dias };
+  const outOfOfficeMessage =
+    typeof out_of_office_message === 'string' && out_of_office_message.trim() !== ''
+      ? out_of_office_message.trim()
+      : undefined;
+
+  return { timezone, start, end, weekdays: dias, outOfOfficeMessage };
 }
 
 /** Dia da semana (0–6) e minutos desde a meia-noite NO FUSO da janela. */

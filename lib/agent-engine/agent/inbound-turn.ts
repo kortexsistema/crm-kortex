@@ -1623,6 +1623,30 @@ async function executarTurnoDoAgente(
   if (!preview && liveJob().kind === 'inbound_turn' && agentConfig?.janelaDeAtendimento != null) {
     const esperaMs = msAteAJanelaAbrir(agentConfig.janelaDeAtendimento, clock());
     if (esperaMs !== null) {
+      const oooMsg = agentConfig.janelaDeAtendimento.outOfOfficeMessage;
+      if (oooMsg) {
+        const turnCrmCfg = { ...deps.crmCfg, agentActorId: agentConfig.agentId };
+        const tempChannel = (deps.channel ?? ((p: pg.Pool) => new WahaChannelAdapter(p, turnCrmCfg)))(pool);
+        await tempChannel.send({
+          tenantId,
+          leadId,
+          jobId: liveJob().id,
+          jobClaim: claimOfJob(liveJob()),
+          agentOperation,
+          seq: 1,
+          conversationId: input.conversationId,
+          body: oooMsg,
+        });
+        runLog.info(
+          'turno encerrado (OOO) — mensagem fora do expediente enviada e job não reagendado',
+          {
+            agent_id: agentConfig.agentId,
+            janela: `${agentConfig.janelaDeAtendimento.start}-${agentConfig.janelaDeAtendimento.end}`,
+          },
+        );
+        return;
+      }
+
       await rescheduleJob(pool, liveJob().id, ctx.workerId, {
         acquiredAt: claimOfJob(liveJob())?.acquired_at,
         delayMs: esperaMs,
@@ -3327,7 +3351,7 @@ async function executarTurnoDoAgente(
       content: `[${m.sent_at}] ${m.body}`,
     }));
 
-    let openingMessages: ModelMessage[] = chatHistory.map(m => ({ ...m }));
+    const openingMessages: ModelMessage[] = chatHistory.map(m => ({ ...m }));
     
     // We append the openingText to the last message if it's from the user, 
     // or add a new user message to hold the system context block.

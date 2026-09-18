@@ -24,10 +24,6 @@ export default function IntegrationsSettingsPage() {
   const [integrationId, setIntegrationId] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
 
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
   const loadConfig = async () => {
     try {
       const res = await getExternalSupabaseConfig();
@@ -41,6 +37,10 @@ export default function IntegrationsSettingsPage() {
       setInitialLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -27,7 +27,7 @@ export async function getExternalSupabaseConfig() {
     ok: true, 
     data: { 
       id: data.id,
-      url: (data.store_metadata as any)?.supabase_url || "" 
+      url: (data.store_metadata as Record<string, unknown>)?.supabase_url || "" 
     } 
   };
 }

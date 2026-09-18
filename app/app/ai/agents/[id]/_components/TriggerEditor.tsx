@@ -4,6 +4,7 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ export interface BusinessHoursValue {
   start: string;
   end: string;
   weekdays: number[];
+  out_of_office_message?: string | null;
 }
 
 export interface TriggerValue {
@@ -237,6 +239,17 @@ export function TriggerEditor({ value, onChange, disabled }: Props) {
                   );
                 })}
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="bh_ooo_msg">{t("Mensagem fora do expediente (opcional)")}</Label>
+              <Textarea
+                id="bh_ooo_msg"
+                value={bh.out_of_office_message ?? ""}
+                onChange={(e) => patchBh({ out_of_office_message: e.target.value.trim() === "" ? null : e.target.value })}
+                disabled={disabled}
+                placeholder={t("Ex.: Olá! Nosso horário de atendimento é de segunda a sexta, das 8h às 18h.")}
+                rows={3}
+              />
             </div>
           </div>
         ) : null}

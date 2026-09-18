@@ -35,10 +35,6 @@ export function SupabaseTablesList({ integrationId }: { integrationId: string })
   const [instruction, setInstruction] = useState("");
   const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    loadTables();
-  }, [integrationId]);
-
   const loadTables = async () => {
     setLoading(true);
     try {
@@ -52,6 +48,10 @@ export function SupabaseTablesList({ integrationId }: { integrationId: string })
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadTables();
+  }, [integrationId]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
