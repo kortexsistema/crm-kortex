@@ -268,6 +268,7 @@ export const AUDIT_ACTIONS = [
   "conversation.snoozed",
   "conversation.snooze_cancelled",
   "conversation.snooze_watcher_run",
+  "conversation.handoff_watcher_run",
   "conversation.note_added",
   "conversation.note_deleted",
   "ai.case_replied",

@@ -29,7 +29,7 @@ export default function IntegrationsSettingsPage() {
       const res = await getExternalSupabaseConfig();
       if (res.ok && res.data) {
         setIntegrationId(res.data.id);
-        setUrl(res.data.url);
+        setUrl((res.data as Record<string, unknown>).url as string || "");
       }
     } catch (e) {
       console.error(e);

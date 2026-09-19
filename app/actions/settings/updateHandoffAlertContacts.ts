@@ -10,16 +10,20 @@ import { loadAuthUser, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { z } from "zod";
 
-const schema = z.object({
-  handoff_alert_phone: z.string().max(20).nullable().optional()
-    .or(z.literal("").transform(() => null)),
+const contactSchema = z.object({
+  name: z.string().max(100),
+  phone: z.string().max(20),
 });
 
-export type UpdateHandoffAlertPhoneResult =
+const schema = z.object({
+  handoff_alert_contacts: z.array(contactSchema).optional(),
+});
+
+export type UpdateHandoffAlertContactsResult =
   | { ok: true }
   | { ok: false; error: string; details?: unknown };
 
-export async function updateHandoffAlertPhone(input: z.infer<typeof schema>): Promise<UpdateHandoffAlertPhoneResult> {
+export async function updateHandoffAlertContacts(input: z.infer<typeof schema>): Promise<UpdateHandoffAlertContactsResult> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: "validation_failed", details: parsed.error.flatten() };
@@ -49,11 +53,10 @@ export async function updateHandoffAlertPhone(input: z.infer<typeof schema>): Pr
 
   const currentSettings = (orgRow?.settings as Record<string, unknown> | null) ?? {};
   
-  // Update the specific field
-  if (parsed.data.handoff_alert_phone) {
-    currentSettings.handoff_alert_phone = parsed.data.handoff_alert_phone;
+  if (parsed.data.handoff_alert_contacts) {
+    currentSettings.handoff_alert_contacts = parsed.data.handoff_alert_contacts;
   } else {
-    delete currentSettings.handoff_alert_phone;
+    delete currentSettings.handoff_alert_contacts;
   }
 
   const { error } = await supabase
@@ -73,7 +76,7 @@ export async function updateHandoffAlertPhone(input: z.infer<typeof schema>): Pr
     ip,
     userAgent,
     metadata: {
-      fields_changed: ["settings.handoff_alert_phone"],
+      fields_changed: ["settings.handoff_alert_contacts"],
     },
   });
 

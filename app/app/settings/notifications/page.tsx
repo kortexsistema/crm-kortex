@@ -52,7 +52,7 @@ export default async function NotificationsPage() {
   const pushPronto = vapidPronto();
 
   const activeOrg = await resolveActiveOrg(user);
-  let initialAlertPhone = "";
+  let initialContacts: { name: string; phone: string }[] = [];
   if (activeOrg) {
     const supabase = await createClient();
     const { data: org } = await supabase
@@ -61,7 +61,9 @@ export default async function NotificationsPage() {
       .eq("id", activeOrg.orgId)
       .single();
     const settings = org?.settings as Record<string, unknown>;
-    initialAlertPhone = (settings?.handoff_alert_phone as string) || "";
+    const legacyPhone = settings?.handoff_alert_phone as string | undefined;
+    initialContacts = (settings?.handoff_alert_contacts as { name: string; phone: string }[]) ??
+      (legacyPhone ? [{ name: "Gestor", phone: legacyPhone }] : []);
   }
 
   return (
@@ -110,7 +112,7 @@ export default async function NotificationsPage() {
 
       <NotificationPrefsClient />
       
-      {activeOrg && <HandoffAlertClient initialPhone={initialAlertPhone} />}
+      {activeOrg && <HandoffAlertClient initialContacts={initialContacts} />}
     </div>
   );
 }

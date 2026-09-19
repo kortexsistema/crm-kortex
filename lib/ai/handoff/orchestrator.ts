@@ -88,7 +88,7 @@ export async function triggerHandoff(
     // paralelo. Skip silenciosamente.
     const { data: convNow } = await admin
       .from("conversations")
-      .select("id, organization_id, contact_id, last_handoff_at, last_handoff_reason, channel_session_id")
+      .select("id, organization_id, contact_id, last_handoff_at, last_handoff_reason, channel_session_id, metadata")
       .eq("id", input.conversationId)
       .eq("organization_id", input.organizationId)
       .maybeSingle();
@@ -103,6 +103,7 @@ export async function triggerHandoff(
       last_handoff_at: string | null;
       last_handoff_reason: string | null;
       channel_session_id: string | null;
+      metadata: Record<string, unknown> | null;
     };
     const c = convNow as unknown as ConvNowRow;
 
@@ -181,6 +182,11 @@ export async function triggerHandoff(
         active_ai_agent_id: null,
         active_intent: null,
         active_agent_set_at: null,
+        metadata: {
+          ...(c.metadata ?? {}),
+          handoff_escalation_index: 0,
+          handoff_escalation_at: nowIso,
+        },
       })
       .eq("id", input.conversationId)
       .eq("organization_id", input.organizationId);
@@ -363,9 +369,11 @@ export async function triggerHandoff(
         .maybeSingle();
 
       const settings = orgRow?.settings as Record<string, unknown> | undefined;
-      const alertPhone = settings?.handoff_alert_phone as string | undefined;
+      const legacyPhone = settings?.handoff_alert_phone as string | undefined;
+      const alertContacts = (settings?.handoff_alert_contacts as { name: string; phone: string }[]) ??
+                            (legacyPhone ? [{ name: "Gestor", phone: legacyPhone }] : []);
 
-      if (alertPhone) {
+      if (alertContacts.length > 0) {
         // Buscar a última mensagem do lead para contexto
         let ultimaMensagem = "[Não encontrada]";
         try {
@@ -406,24 +414,34 @@ export async function triggerHandoff(
         }
 
         if (wahaSessionName) {
+          const session = wahaSessionName; // capture for the closure
           const motivoLegivel = input.reason === "requested_human" ? "o lead pediu atendimento humano" :
             input.reason === "orcamento_de_ia" ? "o orçamento de IA acabou" : 
             input.reason === "low_sentiment" ? "o cliente demonstrou irritação (sentimento baixo)" : input.reason;
 
-          const telefoneGestor = alertPhone.replace(/\D/g, "");
-          const textoAlerta = `🚨 *Kortex Alerta: Handoff Solicitado!*\n\nUma conversa passou para atendimento humano porque ${motivoLegivel}.\n\n*Última mensagem do cliente:*\n"${ultimaMensagem}"\n\n🔗 Acesse o Inbox para responder:\nhttps://crmkortex.app/app/inbox`;
-
           const { sendWAHA } = await import("@/lib/waha/send");
-          await sendWAHA({
-            sessionName: wahaSessionName,
-            chatId: `${telefoneGestor}@c.us`,
-            text: textoAlerta,
-          }).catch(err => {
-            logger.warn("[handoff-orchestrator] sendWAHA failed", {
-              conversation_id: input.conversationId,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          });
+
+          // Escalonamento: No trigger inicial, envia apenas para o primeiro gestor da fila (index 0).
+          // O `handoff-watcher` cron processará os restantes se a conversa não for assumida.
+          const contact = alertContacts[0];
+          if (contact) {
+            const telefoneGestor = contact.phone.replace(/\D/g, "");
+            if (telefoneGestor) {
+              const textoAlerta = `🚨 *Kortex Alerta: Handoff Solicitado!*\n\nOlá ${contact.name}, uma conversa passou para atendimento humano porque ${motivoLegivel}.\n\n*Última mensagem do cliente:*\n"${ultimaMensagem}"\n\n🔗 Acesse o Inbox para responder:\nhttps://crmkortex.app/app/inbox`;
+
+              await sendWAHA({
+                sessionName: session,
+                chatId: `${telefoneGestor}@c.us`,
+                text: textoAlerta,
+              }).catch(err => {
+                logger.warn("[handoff-orchestrator] sendWAHA failed for contact", {
+                  conversation_id: input.conversationId,
+                  phone: telefoneGestor,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              });
+            }
+          }
         }
       }
     } catch (err) {
