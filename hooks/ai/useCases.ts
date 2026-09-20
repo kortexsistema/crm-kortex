@@ -88,9 +88,9 @@ export function useCase(id: string | null) {
 export function useReplyCase() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, action, body }: { id: string; action: CaseHumanAction; body: string }) =>
+    mutationFn: ({ id, action, body, silent }: { id: string; action: CaseHumanAction; body: string; silent?: boolean }) =>
       apiClient
-        .post<{ data: { status: CaseStatus; delivery?: "service_stale" } }>(`/api/v1/ai/cases/${id}/reply`, { action, body })
+        .post<{ data: { status: CaseStatus; delivery?: "service_stale" } }>(`/api/v1/ai/cases/${id}/reply`, { action, body, silent })
         .then((r) => r.data),
     onSettled: (_data, _err, vars) => {
       qc.invalidateQueries({ queryKey: ["ai-case", vars.id] });

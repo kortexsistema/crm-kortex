@@ -83,6 +83,31 @@ export function CaseReplyPanel({ caseId, status }: { caseId: string; status: Cas
       <Button onClick={handleSubmit} disabled={!canSubmit}>
         {reply.isPending ? t("Enviando...") : t("Enviar")}
       </Button>
+
+      {/* Opção discreta para fechamento silencioso (Abordagem Cirúrgica) */}
+      {!disabled && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-1 text-muted-foreground hover:bg-muted/50 w-full"
+          disabled={reply.isPending}
+          onClick={() => {
+            reply.mutate(
+              { id: caseId, action: "resolved", body: "Caso resolvido manualmente pelo operador (sem notificação).", silent: true },
+              {
+                onSuccess: (result) => {
+                  toast.success(t("Caso encerrado silenciosamente."));
+                  setBody("");
+                  setAction(null);
+                },
+                onError: (err) => showApiError(err),
+              }
+            );
+          }}
+        >
+          {t("Fechar caso sem notificar")}
+        </Button>
+      )}
     </div>
   );
 }

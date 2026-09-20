@@ -56,6 +56,7 @@ const bodySchema = z
   .object({
     action: z.enum(["resolved", "need_lead_info", "escalate"]),
     body: z.string().trim().min(1).max(4000),
+    silent: z.boolean().optional(),
   })
   .strict();
 
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest, { params }: RouteParams): Promise<R
       details: parsed.error.flatten(),
     });
   }
-  const { action, body } = parsed.data;
+  const { action, body, silent } = parsed.data;
 
   let pool;
   try {
@@ -196,11 +197,13 @@ export async function POST(req: NextRequest, { params }: RouteParams): Promise<R
           ? await resolveCaseFromHuman(client, org.orgId, caseId, user.id, body)
           : await markAwaitingLead(client, org.orgId, caseId, user.id, body);
       if (transitioned) {
-        await enqueueJob(client, org.orgId, {
-          kind: "case_reply_turn",
-          leadId: contactId,
-          payload: { case_id: caseId, action, body },
-        });
+        if (!silent) {
+          await enqueueJob(client, org.orgId, {
+            kind: "case_reply_turn",
+            leadId: contactId,
+            payload: { case_id: caseId, action, body },
+          });
+        }
         await client.query("commit");
       } else {
         await client.query("rollback");
