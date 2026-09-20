@@ -66,7 +66,7 @@ export interface NavMetadata {
  * mesma conversa para a sexta tela.
  */
 export const NAV_GROUPS: NavGroup[] = [
-  { id: "atendimento", label: "Atendimento" },
+  { id: "atendimento", label: "Atendimento", hub: { href: "/app/atendimento", label: "Ver tudo em Atendimento" } },
   { id: "crm", label: "CRM", hub: { href: "/app/crm", label: "Ver tudo em CRM" } },
   { id: "ia", label: "Agente de IA", hub: { href: "/app/ai", label: "Ver tudo em IA" } },
   { id: "canais", label: "Canais" },
@@ -110,6 +110,17 @@ export const NAV_CATALOG = [
     description: "As conversas de WhatsApp, com você e a IA atendendo lado a lado.",
     icon: "Inbox",
     group: "atendimento",
+    section: "O dia a dia",
+    sidebar: true,
+  },
+  {
+    href: "/app/ai/cases",
+    label: "Casos",
+    description: "Os atendimentos que o agente conduziu, do início ao desfecho.",
+    icon: "ClipboardText",
+    group: "atendimento",
+    section: "O dia a dia",
+    minRole: "agent",
     sidebar: true,
   },
   {
@@ -118,6 +129,7 @@ export const NAV_CATALOG = [
     description: "Quem esfriou e ainda está aberto — o que corre risco de morrer sem resposta.",
     icon: "ClockCountdown",
     group: "atendimento",
+    section: "O dia a dia",
     sidebar: true,
   },
   {
@@ -138,6 +150,7 @@ export const NAV_CATALOG = [
     description: "O que está marcado, com quem, e quem atende — seu e da equipe.",
     icon: "CalendarBlank",
     group: "atendimento",
+    section: "O dia a dia",
     sidebar: true,
   },
   {
@@ -149,7 +162,7 @@ export const NAV_CATALOG = [
     description: "Scripts salvos para responder mais rápido, seus ou da equipe.",
     icon: "FileText",
     group: "atendimento",
-    sidebar: true,
+    section: "Preparar o atendimento",
   },
 
   // ---- CRM — o funil ----
@@ -358,15 +371,7 @@ export const NAV_CATALOG = [
     section: "Ensinar o agente",
     minRole: "manager",
   },
-  {
-    href: "/app/ai/cases",
-    label: "Casos",
-    description: "Os atendimentos que o agente conduziu, do início ao desfecho.",
-    icon: "ClipboardText",
-    group: "ia",
-    section: "Acompanhar o agente",
-    minRole: "agent",
-  },
+
   {
     href: "/app/ai/inbox",
     label: "Alertas",
