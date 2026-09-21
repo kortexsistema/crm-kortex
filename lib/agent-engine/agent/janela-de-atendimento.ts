@@ -39,6 +39,10 @@ export interface JanelaDeAtendimento {
   start: string;
   /** `HH:MM` local, sempre MAIOR que `start` (ver `lerJanelaDeAtendimento`). */
   end: string;
+  /** Início do segundo turno, opcional. */
+  shift2Start?: string;
+  /** Fim do segundo turno, opcional. */
+  shift2End?: string;
   /** 0=domingo … 6=sábado, sem repetição, ao menos um. */
   weekdays: number[];
   /** Mensagem estática para responder a contatos fora de hora (spec OOO). */
@@ -64,10 +68,12 @@ export function lerJanelaDeAtendimento(triggerConfig: unknown): JanelaDeAtendime
   const bh = (filters as { business_hours?: unknown }).business_hours;
   if (typeof bh !== 'object' || bh === null) return null;
 
-  const { timezone, start, end, weekdays, out_of_office_message } = bh as {
+  const { timezone, start, end, shift2_start, shift2_end, weekdays, out_of_office_message } = bh as {
     timezone?: unknown;
     start?: unknown;
     end?: unknown;
+    shift2_start?: unknown;
+    shift2_end?: unknown;
     weekdays?: unknown;
     out_of_office_message?: unknown;
   };
@@ -81,6 +87,24 @@ export function lerJanelaDeAtendimento(triggerConfig: unknown): JanelaDeAtendime
   // melhor que interpretá-la ao contrário: `fim <= inicio` viraria "fechado
   // sempre", que é justamente a mordaça que este arquivo não pode criar.
   if (fim <= inicio) return null;
+
+  let shift2Start: string | undefined;
+  let shift2End: string | undefined;
+
+  if (
+    typeof shift2_start === 'string' &&
+    typeof shift2_end === 'string' &&
+    shift2_start.trim() !== '' &&
+    shift2_end.trim() !== ''
+  ) {
+    const inicio2 = minutosDe(shift2_start);
+    const fim2 = minutosDe(shift2_end);
+    if (inicio2 === null || fim2 === null || fim2 <= inicio2 || inicio2 <= fim) {
+      return null;
+    }
+    shift2Start = shift2_start;
+    shift2End = shift2_end;
+  }
 
   if (!Array.isArray(weekdays) || weekdays.length === 0) return null;
   const dias = [
@@ -102,7 +126,7 @@ export function lerJanelaDeAtendimento(triggerConfig: unknown): JanelaDeAtendime
       ? out_of_office_message.trim()
       : undefined;
 
-  return { timezone, start, end, weekdays: dias, outOfOfficeMessage };
+  return { timezone, start, end, shift2Start, shift2End, weekdays: dias, outOfOfficeMessage };
 }
 
 /** Dia da semana (0–6) e minutos desde a meia-noite NO FUSO da janela. */
@@ -147,14 +171,29 @@ export function msAteAJanelaAbrir(janela: JanelaDeAtendimento, agora: Date): num
   const fim = minutosDe(janela.end);
   if (inicio === null || fim === null) return null;
 
-  const aberta =
-    janela.weekdays.includes(local.dia) && local.minutos >= inicio && local.minutos < fim;
+  const inicio2 = janela.shift2Start ? minutosDe(janela.shift2Start) : null;
+  const fim2 = janela.shift2End ? minutosDe(janela.shift2End) : null;
+
+  const abertaTurno1 = local.minutos >= inicio && local.minutos < fim;
+  const abertaTurno2 = inicio2 !== null && fim2 !== null && local.minutos >= inicio2 && local.minutos < fim2;
+
+  const aberta = janela.weekdays.includes(local.dia) && (abertaTurno1 || abertaTurno2);
   if (aberta) return null;
 
   for (let offset = 0; offset <= 7; offset += 1) {
     const dia = (local.dia + offset) % 7;
     if (!janela.weekdays.includes(dia)) continue;
-    if (offset === 0 && local.minutos >= inicio) continue; // hoje a janela já passou
+    
+    if (offset === 0) {
+      if (local.minutos < inicio) {
+        return (inicio - local.minutos) * 60_000;
+      }
+      if (inicio2 !== null && local.minutos < inicio2) {
+        return (inicio2 - local.minutos) * 60_000;
+      }
+      continue; // hoje a janela já passou
+    }
+    
     const minutosAteAbrir = offset * 24 * 60 + inicio - local.minutos;
     if (minutosAteAbrir > 0) return minutosAteAbrir * 60_000;
   }

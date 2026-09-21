@@ -22,6 +22,15 @@ const COMERCIAL: JanelaDeAtendimento = {
   weekdays: [1, 2, 3, 4, 5],
 };
 
+const DOIS_TURNOS: JanelaDeAtendimento = {
+  timezone: "America/Sao_Paulo",
+  start: "08:00",
+  end: "12:00",
+  shift2Start: "13:00",
+  shift2End: "18:00",
+  weekdays: [1, 2, 3, 4, 5],
+};
+
 const triggerCom = (bh: unknown) => ({ events: ["message"], filters: { business_hours: bh } });
 
 /** Terça-feira 2026-08-18, no fuso de São Paulo (UTC-3). */
@@ -36,6 +45,27 @@ describe("lerJanelaDeAtendimento", () => {
     expect(lerJanelaDeAtendimento(triggerCom(null))).toBeNull();
     expect(lerJanelaDeAtendimento({ events: ["message"] })).toBeNull();
     expect(lerJanelaDeAtendimento(null)).toBeNull();
+  });
+
+  it("lê dois turnos quando configurados corretamente", () => {
+    const raw = {
+      ...COMERCIAL,
+      start: "08:00",
+      end: "12:00",
+      shift2_start: "13:00",
+      shift2_end: "18:00",
+    };
+    expect(lerJanelaDeAtendimento(triggerCom(raw))).toEqual(DOIS_TURNOS);
+  });
+
+  it("ignora (falha aberta inteira) se o segundo turno for inválido", () => {
+    const quebradas: unknown[] = [
+      { ...COMERCIAL, shift2_start: "11:00", shift2_end: "13:00" }, // começa antes do fim do turno 1
+      { ...COMERCIAL, shift2_start: "13:00", shift2_end: "12:00" }, // fim antes do início
+    ];
+    for (const bh of quebradas) {
+      expect(lerJanelaDeAtendimento(triggerCom(bh))).toBeNull();
+    }
   });
 
   it("FALHA ABERTA em config quebrada — nunca vira mordaça", () => {
@@ -81,5 +111,30 @@ describe("msAteAJanelaAbrir", () => {
   it("o fuso da janela é o que vale, não o do servidor", () => {
     // 23:00 UTC de terça = 20:00 em São Paulo → fechado, abre 08:00 de quarta (12h).
     expect(msAteAJanelaAbrir(COMERCIAL, new Date("2026-08-18T23:00:00Z"))).toBe(12 * 60 * 60_000);
+  });
+});
+
+describe("msAteAJanelaAbrir com dois turnos", () => {
+  it("dentro do primeiro turno devolve null", () => {
+    expect(msAteAJanelaAbrir(DOIS_TURNOS, terca("09:30"))).toBeNull();
+  });
+
+  it("dentro do segundo turno devolve null", () => {
+    expect(msAteAJanelaAbrir(DOIS_TURNOS, terca("14:30"))).toBeNull();
+  });
+
+  it("no horário de almoço espera o início do segundo turno", () => {
+    // 12:15 de terça. Abre 13:00 (45 minutos)
+    expect(msAteAJanelaAbrir(DOIS_TURNOS, terca("12:15"))).toBe(45 * 60_000);
+  });
+
+  it("depois do fechamento do segundo turno espera o primeiro turno de amanhã", () => {
+    // 18:30 de terça. Abre 08:00 de quarta (13.5 horas = 810 minutos)
+    expect(msAteAJanelaAbrir(DOIS_TURNOS, terca("18:30"))).toBe(810 * 60_000);
+  });
+
+  it("antes da abertura do primeiro turno", () => {
+    // 06:30 de terça. Abre 08:00 (90 minutos)
+    expect(msAteAJanelaAbrir(DOIS_TURNOS, terca("06:30"))).toBe(90 * 60_000);
   });
 });

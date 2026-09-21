@@ -18,6 +18,8 @@ export interface BusinessHoursValue {
   timezone: string;
   start: string;
   end: string;
+  shift2_start?: string;
+  shift2_end?: string;
   weekdays: number[];
   out_of_office_message?: string | null;
 }
@@ -63,7 +65,9 @@ export function TriggerEditor({ value, onChange, disabled }: Props) {
         ? bh ?? {
             timezone: "America/Sao_Paulo",
             start: "08:00",
-            end: "20:00",
+            end: "12:00",
+            shift2_start: "13:00",
+            shift2_end: "18:00",
             weekdays: [1, 2, 3, 4, 5],
           }
         : null,
@@ -186,36 +190,73 @@ export function TriggerEditor({ value, onChange, disabled }: Props) {
         </div>
         {bh ? (
           <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="bh_tz">{t("Fuso horário")}</Label>
-                <Input
-                  id="bh_tz"
-                  value={bh.timezone}
-                  onChange={(e) => patchBh({ timezone: e.target.value })}
-                  disabled={disabled}
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2 rounded-md border border-border/40 p-3">
+                <p className="text-sm font-medium">{t("Turno 1")}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="bh_start">{t("Início")}</Label>
+                    <Input
+                      id="bh_start"
+                      type="time"
+                      value={bh.start}
+                      onChange={(e) => patchBh({ start: e.target.value })}
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="bh_end">{t("Fim")}</Label>
+                    <Input
+                      id="bh_end"
+                      type="time"
+                      value={bh.end}
+                      onChange={(e) => patchBh({ end: e.target.value })}
+                      disabled={disabled}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="bh_start">{t("Início")}</Label>
-                <Input
-                  id="bh_start"
-                  type="time"
-                  value={bh.start}
-                  onChange={(e) => patchBh({ start: e.target.value })}
-                  disabled={disabled}
-                />
+
+              <div className="space-y-2 rounded-md border border-border/40 p-3 bg-muted/20">
+                <p className="text-sm font-medium">
+                  {t("Turno 2")}{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    {t("(opcional)")}
+                  </span>
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="bh_shift2_start">{t("Início")}</Label>
+                    <Input
+                      id="bh_shift2_start"
+                      type="time"
+                      value={bh.shift2_start ?? ""}
+                      onChange={(e) => patchBh({ shift2_start: e.target.value })}
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="bh_shift2_end">{t("Fim")}</Label>
+                    <Input
+                      id="bh_shift2_end"
+                      type="time"
+                      value={bh.shift2_end ?? ""}
+                      onChange={(e) => patchBh({ shift2_end: e.target.value })}
+                      disabled={disabled}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="bh_end">{t("Fim")}</Label>
-                <Input
-                  id="bh_end"
-                  type="time"
-                  value={bh.end}
-                  onChange={(e) => patchBh({ end: e.target.value })}
-                  disabled={disabled}
-                />
-              </div>
+            </div>
+
+            <div className="space-y-1 w-full md:w-1/3">
+              <Label htmlFor="bh_tz">{t("Fuso horário")}</Label>
+              <Input
+                id="bh_tz"
+                value={bh.timezone}
+                onChange={(e) => patchBh({ timezone: e.target.value })}
+                disabled={disabled}
+              />
             </div>
             <div>
               <Label className="mb-1 block">{t("Dias")}</Label>
