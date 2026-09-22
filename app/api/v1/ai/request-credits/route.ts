@@ -8,10 +8,9 @@ import { env } from "@/lib/env";
 import { Resend } from "resend";
 import { logger } from "@/lib/logger";
 
-const resend = new Resend(env.RESEND_API_KEY);
-
 export async function POST(req: NextRequest) {
   const requestId = randomUUID();
+  const resend = new Resend(env.RESEND_API_KEY);
   
   let userCtx = await requireRole("admin");
   if (!userCtx.ok) {
