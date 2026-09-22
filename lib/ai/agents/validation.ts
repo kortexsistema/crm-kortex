@@ -36,6 +36,8 @@ const triggerConfigSchema = z
             timezone: z.string(),
             start: z.string(),
             end: z.string(),
+            shift2_start: z.string().nullable().optional(),
+            shift2_end: z.string().nullable().optional(),
             weekdays: z.array(z.number().int().min(0).max(6)),
             out_of_office_message: z.string().nullable().optional(),
           })
