@@ -13,6 +13,9 @@ const subscriptionUpdateSchema = z.object({
   subscription_expires_at: z.string().datetime({ offset: true }).nullable().optional(),
   days_to_add: z.number().int().min(1).max(3650).optional(),
   reactivate_if_suspended: z.boolean().optional(),
+  saas_subscription_value_cents: z.number().int().min(0).nullable().optional(),
+  saas_ai_limit_cents: z.number().int().min(0).nullable().optional(),
+  saas_enforcement_mode: z.enum(["off", "avisar", "bloquear"]).optional(),
 });
 
 export async function PATCH(
@@ -44,7 +47,7 @@ export async function PATCH(
 
   const { data: org, error: orgError } = await admin
     .from("organizations")
-    .select("id, slug, display_name, status, plan, subscription_expires_at, settings")
+    .select("id, slug, display_name, status, plan, subscription_expires_at, settings, saas_subscription_value_cents, saas_ai_limit_cents, saas_enforcement_mode")
     .eq("id", tenantId)
     .maybeSingle();
 
@@ -78,6 +81,16 @@ export async function PATCH(
     settings: updatedSettings,
     updated_at: new Date().toISOString(),
   };
+
+  if (body.saas_subscription_value_cents !== undefined) {
+    updatePayload.saas_subscription_value_cents = body.saas_subscription_value_cents;
+  }
+  if (body.saas_ai_limit_cents !== undefined) {
+    updatePayload.saas_ai_limit_cents = body.saas_ai_limit_cents;
+  }
+  if (body.saas_enforcement_mode !== undefined) {
+    updatePayload.saas_enforcement_mode = body.saas_enforcement_mode;
+  }
 
   let reactivated = false;
   if (body.reactivate_if_suspended && org.status === "suspended") {

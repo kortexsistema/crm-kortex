@@ -41,7 +41,10 @@ export async function GET(
       created_at,
       settings,
       plan,
-      subscription_expires_at
+      subscription_expires_at,
+      saas_subscription_value_cents,
+      saas_ai_limit_cents,
+      saas_enforcement_mode
     `,
     )
     .eq("id", id)

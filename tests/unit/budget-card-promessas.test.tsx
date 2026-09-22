@@ -45,6 +45,8 @@ function estado(over: Partial<BudgetStatus> = {}): BudgetStatus {
     pct: 24.68,
     alarm_threshold_pct: 80,
     enforcement_mode: "off",
+    saas_ai_limit_cents: null,
+    saas_enforcement_mode: "off",
     enforcement_effective_at: null,
     enforcement_env: "on",
     blocked_now: false,

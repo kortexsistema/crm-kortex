@@ -43,6 +43,7 @@ function thenable(value: unknown) {
     builder[m] = () => builder;
   }
   builder.maybeSingle = async () => value;
+  builder.single = async () => value;
   builder.then = (resolve: (v: unknown) => unknown) =>
     Promise.resolve(value).then(resolve);
   return builder;
@@ -70,6 +71,7 @@ function makeAdminStub(nuvemshop: { status: string; expires_at: string | null } 
       }
       if (table === "ai_budgets") return thenable({ data: [], error: null });
       if (table === "api_audit_log") return thenable({ data: null, error: null });
+      if (table === "organizations") return thenable({ data: { saas_ai_limit_cents: null, saas_enforcement_mode: "off" }, error: null });
       throw new Error(`unexpected table ${table}`);
     },
     // `fn_gasto_de_ia_do_mes` (migration 0159) — a régua ÚNICA de gasto, a mesma

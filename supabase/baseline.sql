@@ -23446,6 +23446,46 @@ update public.ai_models set is_default_for_provider = false
 update public.ai_models set is_default_for_provider = true
  where provider = 'openrouter' and model_id = 'meta-llama/llama-3.3-70b-instruct';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  UPDATE ai_agent_versions
+  SET knowledge_source_ids = array_remove(knowledge_source_ids, p_source_id)
+  WHERE organization_id = p_org_id
+    AND p_source_id = ANY(knowledge_source_ids)
+    AND status != 'superseded';
+END;
+$$;
+
+ALTER FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") OWNER TO "postgres";
+
+REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM PUBLIC;
+REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM "anon";
+REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") TO "service_role";
+
+-- Appended by Agent: SaaS Controls
+ALTER TABLE public.organizations
+  ADD COLUMN IF NOT EXISTS saas_subscription_value_cents bigint,
+  ADD COLUMN IF NOT EXISTS saas_ai_limit_cents bigint,
+  ADD COLUMN IF NOT EXISTS saas_enforcement_mode text NOT NULL DEFAULT 'off';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'organizations_saas_enforcement_mode_check'
+  ) THEN
+    ALTER TABLE public.organizations
+      ADD CONSTRAINT organizations_saas_enforcement_mode_check
+      CHECK (saas_enforcement_mode IN ('off', 'avisar', 'bloquear'));
+  END IF;
+END $$;
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ ESTE BLOCO É, DE PROPÓSITO, O ÚLTIMO DO ARQUIVO. Apêndice novo entra ANTES
@@ -23520,24 +23560,3 @@ grant execute on function public.fn_decrypt_oauth(bytea) to service_role;
 grant execute on function public.fn_encrypt_oauth(text) to service_role;
 grant execute on function public.fn_lgpd_cascade_redact_contact(uuid, uuid, uuid) to service_role;
 grant execute on function public.fn_update_budget_consumption() to service_role;
-
-
-CREATE OR REPLACE FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") RETURNS "void"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-BEGIN
-  UPDATE ai_agent_versions
-  SET knowledge_source_ids = array_remove(knowledge_source_ids, p_source_id)
-  WHERE organization_id = p_org_id
-    AND p_source_id = ANY(knowledge_source_ids)
-    AND status != 'superseded';
-END;
-$$;
-
-ALTER FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") OWNER TO "postgres";
-
-REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM "anon";
-REVOKE ALL ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") FROM "authenticated";
-GRANT EXECUTE ON FUNCTION "public"."remove_knowledge_source_from_agents"("p_source_id" "uuid", "p_org_id" "uuid") TO "service_role";

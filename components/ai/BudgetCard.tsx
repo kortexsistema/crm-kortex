@@ -254,6 +254,30 @@ export function BudgetCard({ initialData, isAdmin }: Props) {
           </span>
         </div>
       </div>
+
+      {status.saas_ai_limit_cents !== null && status.saas_ai_limit_cents > 0 && (
+        <div className="mt-4 rounded-md border p-3 text-sm">
+          <p className="font-medium text-foreground">Limites do seu Plano (SaaS)</p>
+          <p className="mt-1 text-muted-foreground">
+            Sua organização tem um limite de plataforma de <strong>{fmtCents(status.saas_ai_limit_cents)}</strong>. 
+            {status.saas_enforcement_mode === "bloquear" ? " A IA será bloqueada ao atingir este valor, mesmo que o seu limite local seja maior." : ""}
+          </p>
+          <div className="mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // To be implemented: API call or Server Action to send email
+                fetch(`/api/v1/ai/request-credits`, { method: "POST" })
+                  .then(() => alert("Solicitação enviada com sucesso para o suporte!"))
+                  .catch(() => alert("Erro ao enviar solicitação."));
+              }}
+            >
+              Solicitar Mais Créditos / Fazer Upgrade
+            </Button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

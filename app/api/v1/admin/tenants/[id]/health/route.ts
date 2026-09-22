@@ -41,6 +41,9 @@ export interface TenantHealthResponse {
     consumed_cents: number;
     budget_cents: number | null;
     percent_used: number | null;
+    saas_budget_cents: number | null;
+    saas_percent_used: number | null;
+    saas_enforcement_mode: ModoDeOrcamento;
     /**
      * O teto vincula esta organização? `off` = não — o número acima é
      * informação, não limite. Sem isto a tela do operador mostrava "100% do
@@ -186,7 +189,7 @@ export async function GET(
 
   // 5 parallel queries — service-role, intentional cross-tenant reads.
   // organization_id is resolved from path (trusted), never from body.
-  const [wahaRes, nuvemshopRes, aiRes, gastoRes, auditRes] = await Promise.all([
+  const [wahaRes, nuvemshopRes, aiRes, gastoRes, auditRes, orgRes] = await Promise.all([
     admin
       .from("channel_sessions")
       // `last_qr_at` não existe em channel_sessions; o equivalente real é
@@ -224,6 +227,11 @@ export async function GET(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    admin
+      .from("organizations")
+      .select("saas_ai_limit_cents, saas_enforcement_mode")
+      .eq("id", id)
+      .single(),
   ]);
 
   // --- WAHA ---
@@ -280,7 +288,21 @@ export async function GET(
     budgetCents && budgetCents > 0
       ? Math.round((consumedCents / budgetCents) * 100)
       : null;
-  const aiStatus = aiOverallStatus(percentUsed, enforcementMode);
+      
+  const orgData = orgRes.data;
+  const saasBudgetCents = orgData?.saas_ai_limit_cents ? Number(orgData.saas_ai_limit_cents) : null;
+  const saasEnforcementMode = normalizarModoDeOrcamento(orgData?.saas_enforcement_mode);
+  const saasPercentUsed =
+    saasBudgetCents && saasBudgetCents > 0
+      ? Math.round((consumedCents / saasBudgetCents) * 100)
+      : null;
+
+  const tenantAiStatus = aiOverallStatus(percentUsed, enforcementMode);
+  const saasAiStatus = aiOverallStatus(saasPercentUsed, saasEnforcementMode);
+  // SaaS limit is stronger. So if saas says critical and tenant says warning, use critical.
+  let aiStatus = tenantAiStatus;
+  if (saasAiStatus === "critical") aiStatus = "critical";
+  else if (saasAiStatus === "warning" && tenantAiStatus !== "critical") aiStatus = "warning";
 
   // --- Audit lag ---
   const lastAuditAt = auditRes.data?.created_at ?? null;
@@ -305,6 +327,9 @@ export async function GET(
       budget_cents: budgetCents,
       percent_used: percentUsed,
       enforcement_mode: enforcementMode,
+      saas_budget_cents: saasBudgetCents,
+      saas_percent_used: saasPercentUsed,
+      saas_enforcement_mode: saasEnforcementMode,
       status: aiStatus,
     },
     audit: {

@@ -465,6 +465,7 @@ export const AUDIT_ACTIONS = [
   "platform_ai_credential.updated",
   "platform_ai_credential.deleted",
   "tenant.approved",
+  "tenant.requested_credits",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

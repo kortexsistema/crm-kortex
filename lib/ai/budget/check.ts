@@ -48,6 +48,8 @@ export interface BudgetStatus {
   alarm_threshold_pct: number;
   /** O que a organização escolheu que acontece ao chegar no teto. */
   enforcement_mode: ModoDeOrcamento;
+  saas_ai_limit_cents: number | null;
+  saas_enforcement_mode: ModoDeOrcamento;
   /**
    * Quando a parada começa a valer. `null` = não está armada — nunca esteve, ou
    * foi desarmada (o PATCH zera a coluna ao sair de `bloquear`, senão a carência
@@ -145,7 +147,7 @@ export async function getBudgetStatus(orgId: string): Promise<BudgetStatus> {
   const admin = createAdminClient();
   const enforcementEnv = normalizarChaveDeOrcamento(env.AI_BUDGET_ENFORCEMENT);
 
-  const [linhaRes, gasto, bloqueioRes, semPrecoRes] = await Promise.all([
+  const [linhaRes, gasto, bloqueioRes, semPrecoRes, orgRes] = await Promise.all([
     admin.from("ai_budgets").select(COLUMNS).eq("organization_id", orgId).maybeSingle(),
     gastoDoMes(admin, orgId),
     admin
@@ -163,9 +165,18 @@ export async function getBudgetStatus(orgId: string): Promise<BudgetStatus> {
       .eq("organization_id", orgId)
       .is("cost_cents", null)
       .gte("created_at", inicioDoMesUtc()),
+    admin
+      .from("organizations")
+      .select("saas_ai_limit_cents, saas_enforcement_mode")
+      .eq("id", orgId)
+      .single(),
   ]);
 
   const data = linhaRes.data;
+  const orgData = orgRes.data;
+  const saasAiLimitCents = orgData?.saas_ai_limit_cents ? Number(orgData.saas_ai_limit_cents) : null;
+  const saasEnforcementMode = normalizarModoDeOrcamento(orgData?.saas_enforcement_mode);
+
   const blockedNow = (bloqueioRes.count ?? 0) > 0;
   // Degrada para "medição completa" quando a consulta falha: afirmar um furo que
   // não se mediu assusta quem está protegido de verdade. O erro é logado abaixo.
@@ -213,6 +224,8 @@ export async function getBudgetStatus(orgId: string): Promise<BudgetStatus> {
       pct: 0,
       alarm_threshold_pct: DEFAULTS.alarm_threshold_pct,
       enforcement_mode: "off",
+      saas_ai_limit_cents: saasAiLimitCents,
+      saas_enforcement_mode: saasEnforcementMode,
       enforcement_effective_at: null,
       enforcement_env: enforcementEnv,
       blocked_now: blockedNow,
@@ -233,6 +246,8 @@ export async function getBudgetStatus(orgId: string): Promise<BudgetStatus> {
     pct: pctOf(consumed, monthlyLimit),
     alarm_threshold_pct: Number(data.alarm_threshold_pct ?? DEFAULTS.alarm_threshold_pct),
     enforcement_mode: normalizarModoDeOrcamento(data.enforcement_mode as string | null),
+    saas_ai_limit_cents: saasAiLimitCents,
+    saas_enforcement_mode: saasEnforcementMode,
     enforcement_effective_at: (data.enforcement_effective_at as string | null) ?? null,
     enforcement_env: enforcementEnv,
     blocked_now: blockedNow,

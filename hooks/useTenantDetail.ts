@@ -21,6 +21,9 @@ export interface TenantOrganization {
   settings: Record<string, unknown> | null;
   plan?: "standard" | "pro" | "enterprise" | string | null;
   subscription_expires_at?: string | null;
+  saas_subscription_value_cents?: number | null;
+  saas_ai_limit_cents?: number | null;
+  saas_enforcement_mode?: "off" | "avisar" | "bloquear" | string;
 }
 
 export interface TenantCounts {

@@ -172,6 +172,10 @@ export interface EntradaDeOrcamento {
    * permanente do bloqueio.
    */
   avisadoNesteMes: boolean;
+  /** `organizations.saas_enforcement_mode`. Opcional para não quebrar testes legados. */
+  saasModo?: ModoDeOrcamento;
+  /** `organizations.saas_ai_limit_cents` */
+  saasTetoCents?: number | null;
 }
 
 export type Veredito =
@@ -209,12 +213,6 @@ function ehPurposeIsento(purpose: string): boolean {
  * orçamento de propósito levando o corte mais duro — morre aqui por construção.
  */
 export function decidirOrcamento(entrada: EntradaDeOrcamento): Veredito {
-  // (1) Retorno mais cedo de todos. Para 100% das organizações no dia 1 o modo é
-  // 'off', e o chamador nem chega a consultar o gasto: menos trabalho que hoje.
-  if (entrada.modo === 'off') {
-    return { acao: 'seguir', porque: 'modo_desligado' };
-  }
-
   // (2) Kill switch do operador da VPS às 2h da manhã: põe `off`, reinicia, a IA
   // volta — sem psql, sem saber SQL.
   if (entrada.chave === 'off') {
@@ -224,6 +222,23 @@ export function decidirOrcamento(entrada: EntradaDeOrcamento): Veredito {
   // (3) Diagnóstico e guardrail nunca são recusados por gasto.
   if (ehPurposeIsento(entrada.purpose)) {
     return { acao: 'seguir', porque: 'purpose_isento' };
+  }
+
+  // --- SaaS LIMIT EVALUATION ---
+  // O limite Master Admin (SaaS) intercepta e bloqueia se estourado, ignorando o modo local do tenant.
+  if (entrada.saasModo === 'bloquear' && entrada.saasTetoCents && entrada.saasTetoCents >= PISO_DE_TETO_CENTS) {
+    if (entrada.gastoCents >= entrada.saasTetoCents) {
+      // A chave global só sabe afrouxar
+      if (entrada.chave !== 'avisar') {
+        return { acao: 'bloquear', porque: 'teto_atingido' };
+      }
+    }
+  }
+
+  // (1) Retorno mais cedo de todos. Para 100% das organizações no dia 1 o modo é
+  // 'off', e o chamador nem chega a consultar o gasto: menos trabalho que hoje.
+  if (entrada.modo === 'off') {
+    return { acao: 'seguir', porque: 'modo_desligado' };
   }
 
   // (4) e (5) — teto sem valor útil não vincula ninguém.
@@ -341,9 +356,12 @@ with orc as (
   select b.monthly_limit_cents            as teto,
          b.enforcement_mode               as modo,
          b.enforcement_effective_at       as efetivo_em,
-         b.alarm_threshold_pct            as limiar_pct
-    from ai_budgets b
-   where b.organization_id = $1
+         b.alarm_threshold_pct            as limiar_pct,
+         o.saas_ai_limit_cents            as saas_teto,
+         o.saas_enforcement_mode          as saas_modo
+    from organizations o
+    left join ai_budgets b on b.organization_id = o.id
+   where o.id = $1
 ),
 gasto as (
   select public.fn_gasto_de_ia_do_mes($1) as spent
@@ -406,6 +424,8 @@ select (select teto from orc)         as teto,
        (select modo from orc)         as modo,
        (select efetivo_em from orc)   as efetivo_em,
        (select limiar_pct from orc)   as limiar_pct,
+       (select saas_teto from orc)    as saas_teto,
+       (select saas_modo from orc)    as saas_modo,
        (select spent from gasto)      as gasto,
        (select ja from avisado_antes) as avisado_antes;
 `;

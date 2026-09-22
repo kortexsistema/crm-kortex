@@ -68,6 +68,7 @@ export function TenantOverviewClient({ id }: TenantOverviewClientProps) {
             plan={organization.plan}
             subscriptionExpiresAt={organization.subscription_expires_at}
             status={organization.status}
+            saasSubscriptionValueCents={organization.saas_subscription_value_cents}
           />
           <TenantActions
             organizationId={organization.id}

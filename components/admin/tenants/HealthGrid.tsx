@@ -97,6 +97,10 @@ export function HealthGrid({ health }: HealthGridProps) {
       value: ai.budget_cents ? formatCentsUSD(ai.budget_cents) : t("Ilimitado"),
     },
     { label: t("Limite"), value: t(MODO_LABEL[ai.enforcement_mode]) },
+    ...(ai.saas_budget_cents ? [
+      { label: t("Teto SaaS"), value: formatCentsUSD(ai.saas_budget_cents) },
+      { label: t("Ação SaaS"), value: t(MODO_LABEL[ai.saas_enforcement_mode]) }
+    ] : []),
   ];
 
   // Audit lag card

@@ -112,6 +112,8 @@ function estadoDaTela(over: Partial<BudgetStatus> = {}): BudgetStatus {
     current_month_consumed_cents: 0,
     pct: 0,
     alarm_threshold_pct: 80,
+    saas_ai_limit_cents: null,
+    saas_enforcement_mode: "off",
     enforcement_mode: "off",
     enforcement_effective_at: null,
     enforcement_env: "on",
@@ -630,6 +632,8 @@ describe("desarmar devolve a carência inteira — a coluna NÃO fica pré-gasta
       linha: {
         monthly_limit_cents: 5000,
         alarm_threshold_pct: 80,
+        saas_ai_limit_cents: null,
+        saas_enforcement_mode: "off",
         enforcement_mode: "bloquear",
         enforcement_effective_at: "2026-08-01T00:00:00.000Z",
       },

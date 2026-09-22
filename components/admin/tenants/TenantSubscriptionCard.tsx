@@ -24,6 +24,7 @@ interface TenantSubscriptionCardProps {
   plan?: string | null;
   subscriptionExpiresAt?: string | null;
   status: string;
+  saasSubscriptionValueCents?: number | null;
 }
 
 export function TenantSubscriptionCard({
@@ -31,6 +32,7 @@ export function TenantSubscriptionCard({
   plan = "standard",
   subscriptionExpiresAt,
   status,
+  saasSubscriptionValueCents,
 }: TenantSubscriptionCardProps) {
   const t = useT();
   const tagDoIdioma = useTagDeIdioma();
@@ -39,6 +41,9 @@ export function TenantSubscriptionCard({
   const [selectedPlan, setSelectedPlan] = useState<string>(plan ?? "standard");
   const [customDate, setCustomDate] = useState<string>(
     subscriptionExpiresAt ? subscriptionExpiresAt.split("T")[0] ?? "" : "",
+  );
+  const [subscriptionValue, setSubscriptionValue] = useState<string>(
+    saasSubscriptionValueCents ? (saasSubscriptionValueCents / 100).toFixed(2) : ""
   );
   const [loading, setLoading] = useState(false);
 
@@ -69,6 +74,7 @@ export function TenantSubscriptionCard({
     days_to_add?: number;
     subscription_expires_at?: string | null;
     reactivate_if_suspended?: boolean;
+    saas_subscription_value_cents?: number | null;
   }) {
     setLoading(true);
     try {
@@ -222,6 +228,38 @@ export function TenantSubscriptionCard({
                     const iso = new Date(`${customDate}T23:59:59Z`).toISOString();
                     void updateSubscription({ subscription_expires_at: iso });
                   }
+                }}
+                className="h-8 text-xs shrink-0"
+              >
+                {t("Salvar")}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">
+              {t("Valor da Assinatura (US$)")}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Ex: 49.90"
+                value={subscriptionValue}
+                onChange={(e) => setSubscriptionValue(e.target.value)}
+                className="h-8 text-xs"
+                disabled={loading}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={loading}
+                onClick={() => {
+                  const val = parseFloat(subscriptionValue);
+                  const cents = isNaN(val) ? null : Math.round(val * 100);
+                  void updateSubscription({ saas_subscription_value_cents: cents });
                 }}
                 className="h-8 text-xs shrink-0"
               >

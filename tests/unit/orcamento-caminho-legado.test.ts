@@ -85,6 +85,8 @@ const ARMADO_E_ESTOURADO: BudgetStatus = {
   pct: 150,
   alarm_threshold_pct: LIMIAR_PADRAO_PCT,
   enforcement_mode: "bloquear",
+  saas_ai_limit_cents: null,
+  saas_enforcement_mode: "off",
   enforcement_effective_at: ONTEM,
   enforcement_env: "on",
   blocked_now: false,
