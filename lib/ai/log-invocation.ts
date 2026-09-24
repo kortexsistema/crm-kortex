@@ -67,6 +67,7 @@ export function logInvocation(row: LogInvocationInput): void {
         //
         // O mapa de nomes é o mesmo eixo com rótulos diferentes:
         // invocation_kind → purpose, prompt/completion → input/output.
+        logger.info("[DIAGNOSTICO] Tentando salvar em llm_calls via logInvocation", { organization_id: row.organization_id, purpose: row.invocation_kind });
         const { error } = await admin.from("llm_calls").insert({
           organization_id: row.organization_id,
           // NORMALIZA AQUI, e não no chamador (issue #160). O tipo já diz
@@ -103,13 +104,17 @@ export function logInvocation(row: LogInvocationInput): void {
             : null,
         });
         if (error) {
+          logger.error("[DIAGNOSTICO] Falha ao salvar em llm_calls via logInvocation", { error: error.message });
           logger.warn("[llm-calls] insert failed", {
             error: error.message,
             organization_id: row.organization_id,
             invocation_kind: row.invocation_kind,
           });
+        } else {
+          logger.info("[DIAGNOSTICO] Sucesso ao salvar em llm_calls via logInvocation", { organization_id: row.organization_id });
         }
       } catch (err) {
+        logger.error("[DIAGNOSTICO] Exceção ao salvar em llm_calls via logInvocation", { error: String(err) });
         logger.warn("[llm-calls] insert threw", {
           error: err instanceof Error ? err.message : String(err),
           organization_id: row.organization_id,

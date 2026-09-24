@@ -475,31 +475,40 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
   };
   const cost = costCents(model, usage);
 
-  const { rows } = await db.query<{ id: string }>(
-    `insert into llm_calls
-       (organization_id, contact_id, job_id, variant_id, purpose, provider, model,
-        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_cents, latency_ms,
-        status, origem_da_escolha, agent_id)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'ok', $14, $15)
-     returning id`,
-    [
-      input.tenantId,
-      input.leadId ?? null,
-      input.jobId ?? null,
-      input.variantId ?? null,
-      purpose,
-      config.provider,
-      model,
-      usage.inputTokens,
-      usage.outputTokens,
-      usage.cacheReadTokens,
-      usage.cacheWriteTokens,
-      cost,
-      latencyMs,
-      decisao.origem,
-      input.agentId ?? null,
-    ],
-  );
+  let callId = null;
+  deps.log?.info('[DIAGNOSTICO] Tentando salvar em llm_calls via runModelCall', { organization_id: input.tenantId, purpose });
+  try {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into llm_calls
+         (organization_id, contact_id, job_id, variant_id, purpose, provider, model,
+          input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_cents, latency_ms,
+          status, origem_da_escolha, agent_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'ok', $14, $15)
+       returning id`,
+      [
+        input.tenantId,
+        input.leadId ?? null,
+        input.jobId ?? null,
+        input.variantId ?? null,
+        purpose,
+        config.provider,
+        model,
+        usage.inputTokens,
+        usage.outputTokens,
+        usage.cacheReadTokens,
+        usage.cacheWriteTokens,
+        cost,
+        latencyMs,
+        decisao.origem,
+        input.agentId ?? null,
+      ],
+    );
+    callId = rows[0]?.id ?? null;
+    deps.log?.info('[DIAGNOSTICO] Sucesso ao salvar em llm_calls via runModelCall', { callId, organization_id: input.tenantId });
+  } catch (err) {
+    deps.log?.error('[DIAGNOSTICO] Exceção ao salvar em llm_calls via runModelCall', { error: String(err) });
+    console.error("[DIAGNOSTICO] Exceção ao salvar em llm_calls via runModelCall", err);
+  }
 
   // Só métricas — nunca conteúdo de mensagem (PII) nem chave.
   deps.log?.info('llm: chamada concluída', {
@@ -525,7 +534,7 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
 
   return {
     result,
-    callId: rows[0]?.id ?? null,
+    callId,
     provider: config.provider,
     model,
     usage,
