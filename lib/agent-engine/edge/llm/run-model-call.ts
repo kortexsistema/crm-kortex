@@ -470,8 +470,8 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
   const usage = {
     inputTokens: result.usage.inputTokens ?? 0,
     outputTokens: result.usage.outputTokens ?? 0,
-    cacheReadTokens: result.usage.inputTokenDetails.cacheReadTokens ?? 0,
-    cacheWriteTokens: result.usage.inputTokenDetails.cacheWriteTokens ?? 0,
+    cacheReadTokens: result.usage.inputTokenDetails?.cacheReadTokens ?? 0,
+    cacheWriteTokens: result.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
   };
   const cost = costCents(model, usage);
 
