@@ -14,10 +14,12 @@
 /** USD por MILHÃO de tokens; match por prefixo longo primeiro (ex: 'gpt-4o-mini' antes de 'gpt-4o'). */
 const USD_PER_MTOK: Record<string, { input: number; output: number }> = {
   // OpenAI
+  'gpt-5.6-terra': { input: 1.00, output: 2.00 },
   'gpt-4o-mini': { input: 0.15, output: 0.60 },
   'gpt-4o': { input: 2.50, output: 10.00 },
 
   // Anthropic
+  'claude-haiku-4-5': { input: 0.25, output: 1.25 },
   'claude-3-5-haiku': { input: 0.25, output: 1.25 },
   'claude-3-5-sonnet': { input: 3.00, output: 15.00 },
   'claude-3-opus': { input: 15.00, output: 75.00 },

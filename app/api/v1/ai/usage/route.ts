@@ -92,25 +92,46 @@ export async function GET(req: NextRequest): Promise<Response> {
   // esquecesse mentia (foi assim que esta tela mostrou ZERO custo com o
   // dinheiro saindo). A 0130 fez o backfill; `ai_invocations` é histórico e
   // ninguém mais escreve nela.
-  let invQ = supabase
-    .from("llm_calls")
-    .select("created_at, purpose, cost_cents, input_tokens, output_tokens, latency_ms, agent_id")
-    .eq("organization_id", activeOrg.orgId)
-    .gte("created_at", fromIso)
-    .lte("created_at", toIso)
-    .order("created_at", { ascending: true })
-    .limit(50_000);
+  // Paginação em loop para contornar o limite de 1000 linhas por padrão do Supabase
+  let invRowsRaw: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  const maxRows = 50_000;
+  let hasMore = true;
 
-  // O filtro por agente continua existindo: a 0130 levou `agent_id` para
-  // `llm_calls` justamente para a unificação não custar essa capacidade — é
-  // como o operador descobre QUAL agente está consumindo a conta.
-  if (parsed.data.agent_id) invQ = invQ.eq("agent_id", parsed.data.agent_id);
-  if (parsed.data.invocation_kind) invQ = invQ.eq("purpose", parsed.data.invocation_kind);
+  while (hasMore && invRowsRaw.length < maxRows) {
+    let invQ = supabase
+      .from("llm_calls")
+      .select("created_at, purpose, cost_cents, input_tokens, output_tokens, latency_ms, agent_id")
+      .eq("organization_id", activeOrg.orgId)
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso)
+      .order("created_at", { ascending: true })
+      .range(page * pageSize, (page + 1) * pageSize - 1);
 
-  const { data: invRowsRaw, error: invErr } = await invQ;
-  if (invErr) {
-    console.warn("[ai-usage] llm_calls query failed", { error: invErr.message });
-    return fail("internal_error", "Erro ao agregar o uso de IA.", 500, { requestId });
+    // O filtro por agente continua existindo: a 0130 levou `agent_id` para
+    // `llm_calls` justamente para a unificação não custar essa capacidade — é
+    // como o operador descobre QUAL agente está consumindo a conta.
+    if (parsed.data.agent_id) invQ = invQ.eq("agent_id", parsed.data.agent_id);
+    if (parsed.data.invocation_kind) invQ = invQ.eq("purpose", parsed.data.invocation_kind);
+
+    const { data: pageData, error: invErr } = await invQ;
+
+    if (invErr) {
+      console.warn("[ai-usage] llm_calls query failed", { error: invErr.message });
+      return fail("internal_error", "Erro ao agregar o uso de IA.", 500, { requestId });
+    }
+
+    if (pageData && pageData.length > 0) {
+      invRowsRaw = invRowsRaw.concat(pageData);
+      if (pageData.length < pageSize) {
+        hasMore = false;
+      }
+    } else {
+      hasMore = false;
+    }
+    
+    page++;
   }
   const invRows = ((invRowsRaw ?? []) as unknown as Array<{
     created_at: string; purpose: string | null; cost_cents: number | null;
