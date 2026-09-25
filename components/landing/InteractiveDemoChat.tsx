@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Scale, GraduationCap, Stethoscope, Home, MessageCircle } from "lucide-react";
+import { Scale, GraduationCap, Stethoscope, Home, MessageCircle, Dumbbell, Sparkles, PawPrint, Calculator } from "lucide-react";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 const WHATSAPP_NUMBER = "5516997925854";
@@ -42,6 +42,38 @@ const AGENT_CONFIGS = [
     title: "Agente Imobiliário",
     desc: "Busca inteligente de imóveis, captação de leads e agendamento de visitas.",
     url: `https://wa.me/${WHATSAPP_NUMBER}?text=Quero%20testar%20o%20agente%20de%20Imobiliaria`
+  },
+  {
+    id: "academia",
+    label: "Academia / Fitness",
+    icon: Dumbbell,
+    title: "Agente Fitness",
+    desc: "Explicação de planos, modalidades e agendamento de aulas experimentais.",
+    url: `https://wa.me/${WHATSAPP_NUMBER}?text=Quero%20testar%20o%20agente%20de%20Academia`
+  },
+  {
+    id: "estetica",
+    label: "Estética & Beleza",
+    icon: Sparkles,
+    title: "Agente de Estética",
+    desc: "Sugestão de pacotes de tratamentos e marcação de horários.",
+    url: `https://wa.me/${WHATSAPP_NUMBER}?text=Quero%20testar%20o%20agente%20de%20Estetica`
+  },
+  {
+    id: "petshop",
+    label: "Pet Shop & Vet",
+    icon: PawPrint,
+    title: "Agente Pet",
+    desc: "Agendamento de banho e tosa, vacinas e dúvidas sobre produtos.",
+    url: `https://wa.me/${WHATSAPP_NUMBER}?text=Quero%20testar%20o%20agente%20de%20PetShop`
+  },
+  {
+    id: "contabilidade",
+    label: "Contabilidade B2B",
+    icon: Calculator,
+    title: "Agente Contábil",
+    desc: "Triagem tributária, qualificação corporativa e agendamento de propostas.",
+    url: `https://wa.me/${WHATSAPP_NUMBER}?text=Quero%20testar%20o%20agente%20de%20Contabilidade`
   },
 ];
 
