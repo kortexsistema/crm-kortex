@@ -1625,6 +1625,21 @@ async function executarTurnoDoAgente(
     if (esperaMs !== null) {
       const oooMsg = agentConfig.janelaDeAtendimento.outOfOfficeMessage;
       if (oooMsg) {
+        const { rows } = await pool.query<{ body: string }>(
+          `select body from messages 
+           where organization_id = $1 and conversation_id = $2 and direction = 'outbound' 
+           order by created_at desc 
+           limit 1`,
+          [tenantId, input.conversationId]
+        );
+        if (rows.length > 0 && rows[0]!.body === oooMsg) {
+          runLog.info(
+            'turno encerrado (OOO suprimido) — aviso já enviado na última interação e job não reagendado',
+            { agent_id: agentConfig.agentId }
+          );
+          return;
+        }
+
         const turnCrmCfg = { ...deps.crmCfg, agentActorId: agentConfig.agentId };
         const tempChannel = (deps.channel ?? ((p: pg.Pool) => new WahaChannelAdapter(p, turnCrmCfg)))(pool);
         await tempChannel.send({
