@@ -41,7 +41,7 @@ export function SubscriptionWarningBanner({
         variant="outline"
         className="h-7 border-amber-400 bg-white/80 hover:bg-white text-amber-900 dark:border-amber-700 dark:bg-amber-900/50 dark:hover:bg-amber-900 dark:text-amber-100 font-medium"
       >
-        <Link href="/app/settings/billing">{t("Ver dados para PIX")}</Link>
+        <Link href="/app/settings/plans">{t("Ver dados para PIX")}</Link>
       </Button>
     </div>
   );

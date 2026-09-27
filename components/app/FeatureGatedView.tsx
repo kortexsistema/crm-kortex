@@ -42,7 +42,7 @@ export function FeatureGatedView({
           
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button asChild className="w-full sm:w-auto">
-              <Link href="/app/settings/billing">
+              <Link href="/app/settings/plans">
                 {traduzir("Fazer Upgrade de Plano", locale)}
               </Link>
             </Button>

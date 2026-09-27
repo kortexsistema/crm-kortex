@@ -53,7 +53,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const vapidPronto = vi.hoisted(() => vi.fn<() => boolean>());
 vi.mock("@/lib/notifications/vapid", () => ({ vapidPronto }));
-vi.mock("@/lib/auth/server", () => ({ requireAuth: vi.fn().mockResolvedValue({}) }));
+vi.mock("@/lib/auth/server", () => ({ 
+  requireAuth: vi.fn().mockResolvedValue({}), 
+  resolveActiveOrg: vi.fn().mockResolvedValue({ orgId: "123", tenantName: "Mock Org" }) 
+}));
 vi.mock("@/app/app/settings/notifications/_client", () => ({
   NotificationPrefsClient: () => <table />,
 }));

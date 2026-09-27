@@ -292,7 +292,8 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 
 2 0 2 6 0 9 0 8 2 2 0 0 0 0 _ 0 2 3 6 _ t e n a n t _ i n t e g r a t i o n s _ e x t e r n a l _ s u p a b a s e . s q l  
  20260912154500_0237_tenant_pending_status.sql
-| `20260908220000` | `0236_tenant_integrations_external_supabase` | Integração com Supabase externo (sandbox) |
+| `20260908220000` | `0236_tenant_integrations_external_supabase` | Integraï¿½ï¿½o com Supabase externo (sandbox) |
 | `20260912154500` | `0237_tenant_pending_status` | Status pendente para tenants novos (sandbox) |
 | `20260913075000` | `0238_supabase_integrations` | Tabelas de integraÃ§Ã£o de consulta dinÃ¢mica do agente via banco Supabase externo |
 | `20260922120000` | `0240_saas_controls` | SaaS Controls (Subscription & AI Budget Limits) |
+| `20260915120000` | `0239_remove_source_from_agents` | Remover coluna source dos agentes |

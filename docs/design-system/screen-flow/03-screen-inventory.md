@@ -99,7 +99,6 @@ date: 2026-04-28
 | 38 | `/app/ai/knowledge/sources/policies` | manager+ | default, uploading, parse-failed | `<PolicyUploader>` | — | P1 |
 | 39 | `/app/ai/knowledge/sources/catalog` | manager+ | default, sync-paused, sync-active | `<CatalogSyncStatus>` | sim | P1 |
 | 40 | `/app/ai/knowledge/sources/conversations` | manager+ | default, opt-in-required, anonymization-pending | `<ConversationsRAGSelector>` | — | P1 |
-| 41 | `/app/ai/usage` | P3 admin | default, near-budget (80%), over-budget | `<UsageDashboard>`, `<CostChart>` | sim | P1 |
 | 42 | `/app/ai/budget` | P3 admin | default, edit, save-error | `<BudgetForm>` | — | P1 |
 
 ## H. App tenant — Integrações (10 telas)
@@ -155,7 +154,6 @@ date: 2026-04-28
 | 69 | `/app/settings/tenant/vocabulary` | manager+ | default, edit, propagating | `<VocabularyEditor>` | — | P1 |
 | 70 | `/app/settings/marca` | P3 admin | default, prévia-ao-digitar, hex-inválido (Salvar desabilitado), salvo | `app/app/settings/marca/_form.tsx` + `<TiraDeTons>` | — | **entregue** |
 | 71 | `/app/settings/api-tokens` | P3 admin | default, create-once-shown, revoked | `<APITokensList>`, `<TokenRevealDialog>` | — | P1 |
-| 72 | `/app/settings/billing` | P3 admin | default (Fase 2) | `<BillingDashboard>` | — | P2 |
 
 > **Correção de 2026-08-14 na linha 70.** Ela inventariava `/app/settings/tenant/branding` com
 > `<BrandingForm>` e upload de logo. **Essa rota nunca existiu**, e quem a procurasse concluiria
