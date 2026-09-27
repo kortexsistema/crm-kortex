@@ -104,7 +104,7 @@ export default function HomePage() {
                 <div className="w-12 h-12 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-400 border border-teal-500/20">
                   <Zap className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold text-white">{t("CRM Kanban Visual")}</h3>
+                <h3 className="text-xl font-bold text-white">{t("CRM Quadro Visual")}</h3>
                 <p className="text-zinc-400 text-sm leading-relaxed">{t("Veja onde cada negociação trava, mova cards entre etapas e entenda o fluxo real do seu time num único olhar.")}</p>
               </div>
               <div className="bg-white/[0.02] p-8 rounded-3xl border border-white/5 hover:bg-white/[0.04] transition-colors flex flex-col gap-4 backdrop-blur-sm">
@@ -135,14 +135,14 @@ export default function HomePage() {
               <div className="absolute inset-0 bg-emerald-500/20 blur-[80px] rounded-full" />
               <div className="relative bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 shadow-2xl backdrop-blur-md">
                 <div className="flex gap-4 items-start p-4 bg-white/5 rounded-xl border border-white/5 mb-4">
-                   <Bot className="w-8 h-8 text-emerald-400 flex-shrink-0" />
+                   <Bot className="w-8 h-8 text-emerald-400 shrink-0" />
                    <div>
                      <p className="text-sm text-zinc-300 font-medium">Copiloto Integrado</p>
                      <p className="text-xs text-zinc-500 mt-1">A IA sugere a melhor resposta para o atendente humano, ou assume a conversa baseada no seu catálogo e histórico de vendas.</p>
                    </div>
                 </div>
                 <div className="flex gap-4 items-start p-4 bg-white/5 rounded-xl border border-white/5">
-                   <MessageSquare className="w-8 h-8 text-emerald-400 flex-shrink-0" />
+                   <MessageSquare className="w-8 h-8 text-emerald-400 shrink-0" />
                    <div>
                      <p className="text-sm text-zinc-300 font-medium">Departamentos & Times</p>
                      <p className="text-xs text-zinc-500 mt-1">Organize times e fluxos por setor. Vários atendentes no mesmo número, com distribuição inteligente e relatórios por pessoa.</p>
@@ -185,11 +185,11 @@ export default function HomePage() {
                   <p className="text-zinc-400 text-sm h-10">Foco em Operações Iniciais e organização do atendimento.</p>
                 </div>
                 <ul className="space-y-4 text-sm text-zinc-300 flex-1 mb-8">
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> 1 Número Conectado</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> Até 5 Atendentes</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> 1 Workflow de Automação</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> CRM Kanban Básico</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> Suporte Online</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> 1 Número Conectado</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> Até 5 Atendentes</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> 1 Workflow de Automação</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> CRM Quadro Básico</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> Suporte Online</li>
                 </ul>
                 <a
                   href="https://wa.me/5516997925854?text=Olá,%20gostaria%20de%20saber%20mais%20sobre%20o%20plano%20Standard."
@@ -211,11 +211,11 @@ export default function HomePage() {
                   <p className="text-zinc-300 text-sm h-10">Para times que querem escala e Inteligência Artificial Avançada.</p>
                 </div>
                 <ul className="space-y-4 text-sm text-zinc-200 flex-1 mb-8">
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" /> Tudo do plano Standard</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" /> Inteligência Artificial Integrada</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" /> Até 15 Atendentes</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" /> Múltiplos Departamentos</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" /> Integrações via API (Webhooks)</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> Tudo do plano Standard</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> Inteligência Artificial Integrada</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> Até 15 Atendentes</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> Múltiplos Departamentos</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> Integrações via API (Webhooks)</li>
                 </ul>
                 <a
                   href="https://wa.me/5516997925854?text=Olá,%20tenho%20interesse%20em%20garantir%20o%20plano%20Pro."
@@ -234,11 +234,11 @@ export default function HomePage() {
                   <p className="text-zinc-400 text-sm h-10">Gestão completa para Grandes Operações e Funções Ilimitadas.</p>
                 </div>
                 <ul className="space-y-4 text-sm text-zinc-300 flex-1 mb-8">
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> Tudo do plano Pro</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> Atendentes e Departamentos Ilimitados</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> Workflows Avançados Ilimitados</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> Módulo de Documentos</li>
-                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 flex-shrink-0" /> Suporte Prioritário e Treinamento</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> Tudo do plano Pro</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> Atendentes e Departamentos Ilimitados</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> Workflows Avançados Ilimitados</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> Módulo de Documentos</li>
+                  <li className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-zinc-600 shrink-0" /> Suporte Prioritário e Treinamento</li>
                 </ul>
                 <a
                   href="https://wa.me/5516997925854?text=Olá,%20preciso%20de%20uma%20solução%20Enterprise."

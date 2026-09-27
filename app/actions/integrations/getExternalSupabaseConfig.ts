@@ -3,6 +3,7 @@
 import { loadAuthUser, resolveActiveOrg } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 
+// @effect-exempt: apenas leitura de configuração
 export async function getExternalSupabaseConfig() {
   const authUser = await loadAuthUser();
   if (!authUser) return { ok: false, error: { message: "Auth required." } };

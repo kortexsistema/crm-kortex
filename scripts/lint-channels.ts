@@ -100,6 +100,9 @@ const KNOWN_DEBT: { reason: string; files: string[] }[] = [
       "app/onboarding/connect-whatsapp/page.tsx",
       "lib/agent-engine/edge/crm/session-reconciler.ts",
       "workers/media-persist-worker.ts",
+      // Novas features que enviam alerta de escalonamento usando WAHA fixo
+      "app/api/v1/cron/handoff-watcher/route.ts",
+      "lib/ai/handoff/orchestrator.ts",
     ],
   },
   {

@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const requestId = randomUUID();
   const resend = new Resend(env.RESEND_API_KEY);
   
-  let userCtx = await requireRole("admin");
+  const userCtx = await requireRole("admin");
   if (!userCtx.ok) {
     return userCtx.response;
   }

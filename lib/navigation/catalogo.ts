@@ -405,15 +405,7 @@ export const NAV_CATALOG = [
     // Idem: fora da sidebar para o menu não passar da dobra. Quem vem para cá
     // está diagnosticando, e chega pelo hub ou pelo link do aviso na Central.
   },
-  {
-    href: "/app/ai/usage",
-    label: "Uso e orçamento",
-    description: "Quanto a IA consumiu e qual é o teto de gasto do mês.",
-    icon: "Gauge",
-    group: "ia",
-    section: "Acompanhar o agente",
-    minRole: "manager",
-  },
+
 
   // ---- Canais — por onde as mensagens entram e saem ----
   {
@@ -651,9 +643,9 @@ export const NAV_CATALOG = [
     // 900px, medido pelo e2e `navegacao.spec.ts`.
   },
   {
-    href: "/app/settings/billing",
-    label: "Billing",
-    description: "Plano e cobrança.",
+    href: "/app/settings/plans",
+    label: "Planos e Créditos",
+    description: "Plano, renovação e uso de créditos de IA.",
     icon: "Receipt",
     group: "organizacao",
     section: "Sua empresa",

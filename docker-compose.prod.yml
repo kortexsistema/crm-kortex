@@ -32,8 +32,8 @@ services:
     # default é quem NÃO tem APP_IMAGE no .env — avaliação, ou um .env que
     # perdeu a chave. Nenhum desses casos quer código não lançado; quem quiser o
     # topo da main pede `APP_IMAGE=…:latest` explicitamente.
-    # image: ${APP_IMAGE:-ghcr.io/melgarafael/deskcommcrm:stable}
-    # pull_policy: ${APP_PULL_POLICY:-always}
+    image: ${APP_IMAGE:-ghcr.io/melgarafael/deskcommcrm:stable}
+    pull_policy: ${APP_PULL_POLICY:-always}
     build:
       context: .
       dockerfile: Dockerfile
@@ -91,7 +91,8 @@ services:
     # `:latest`, esse default seria o TOPO DA MAIN (o canal segue a branch
     # default): o app pinado numa release e o runtime do agente de
     # IA rodando código não lançado, sobre o banco da release. `:stable` é a
-    # última release publicada — pareia com o app em vez de correr na frente.
+    image: ${WORKER_IMAGE:-ghcr.io/melgarafael/deskcomm-worker:stable}
+    pull_policy: ${APP_PULL_POLICY:-always}
     build:
       context: .
       dockerfile: Dockerfile.worker
@@ -209,7 +210,8 @@ services:
     # `command:` inline instalava curl e tzdata (`apk add`) a CADA start — num
     # serviço `restart: unless-stopped`, isso significa que o cron do cliente só
     # voltava se a VPS tivesse internet e o mirror do Alpine estivesse de pé,
-    # justamente no momento em que a máquina está se recuperando de algo.
+    image: ${SCHEDULER_IMAGE:-ghcr.io/melgarafael/deskcomm-scheduler:stable}
+    pull_policy: ${APP_PULL_POLICY:-always}
     build:
       context: .
       dockerfile: Dockerfile.scheduler

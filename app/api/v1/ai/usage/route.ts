@@ -93,7 +93,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   // dinheiro saindo). A 0130 fez o backfill; `ai_invocations` é histórico e
   // ninguém mais escreve nela.
   // Paginação em loop para contornar o limite de 1000 linhas por padrão do Supabase
-  let invRowsRaw: any[] = [];
+  let invRowsRaw: Record<string, unknown>[] = [];
   let page = 0;
   const pageSize = 1000;
   const maxRows = 50_000;
