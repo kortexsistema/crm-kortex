@@ -50,15 +50,15 @@ export class GeminiAdapter implements AIAdapter {
     }
   }
 
-  async transcribeAudio(audioBuffer: Buffer): Promise<string> {
+  async transcribeAudio(audioBuffer: ArrayBuffer | Buffer): Promise<string> {
     throw new Error('transcribeAudio not implemented for Gemini adapter via Vercel AI SDK yet.');
   }
 
-  async textToSpeech(text: string, voiceId: string): Promise<Buffer> {
+  async textToSpeech(text: string, voiceId: string): Promise<ArrayBuffer> {
     throw new Error('textToSpeech not implemented for Gemini adapter yet.');
   }
 
-  async analyzeDocument(documentBuffer: Buffer, prompt: string): Promise<AIResponse> {
+  async analyzeDocument(documentBuffer: ArrayBuffer | Buffer, prompt: string): Promise<AIResponse> {
     throw new Error('analyzeDocument not implemented for Gemini adapter yet.');
   }
 

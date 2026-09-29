@@ -50,11 +50,11 @@ export class OpenAIAdapter implements AIAdapter {
     }
   }
 
-  async transcribeAudio(audioBuffer: Buffer): Promise<string> {
+  async transcribeAudio(audioBuffer: ArrayBuffer | Buffer): Promise<string> {
     throw new Error('transcribeAudio not implemented for OpenAI adapter yet.');
   }
 
-  async textToSpeech(text: string, voiceId: string = 'alloy'): Promise<Buffer> {
+  async textToSpeech(text: string, voiceId: string = 'alloy'): Promise<ArrayBuffer> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY is not defined in the environment.');
@@ -81,13 +81,13 @@ export class OpenAIAdapter implements AIAdapter {
       }
 
       const arrayBuffer = await response.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      return arrayBuffer;
     } catch (error: unknown) {
       this.handleError(error);
     }
   }
 
-  async analyzeDocument(documentBuffer: Buffer, prompt: string): Promise<AIResponse> {
+  async analyzeDocument(documentBuffer: ArrayBuffer | Buffer, prompt: string): Promise<AIResponse> {
     throw new Error('analyzeDocument not implemented for OpenAI adapter yet.');
   }
 

@@ -15,7 +15,7 @@ export interface AIResponse {
 
 export interface AIAdapter {
   generateText(prompt: string, options: ModelOptions): Promise<AIResponse>;
-  transcribeAudio(audioBuffer: Buffer): Promise<string>;
-  textToSpeech(text: string, voiceId: string): Promise<Buffer>;
-  analyzeDocument(documentBuffer: Buffer, prompt: string): Promise<AIResponse>;
+  transcribeAudio(audioBuffer: ArrayBuffer | Buffer): Promise<string>;
+  textToSpeech(text: string, voiceId: string): Promise<ArrayBuffer>;
+  analyzeDocument(documentBuffer: ArrayBuffer | Buffer, prompt: string): Promise<AIResponse>;
 }
