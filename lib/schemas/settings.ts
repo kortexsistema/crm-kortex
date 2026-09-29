@@ -109,6 +109,8 @@ export const tenantSchema = z.object({
     .optional()
     .or(z.literal("").transform(() => null)),
   lost_reasons_extra: z.array(z.string().min(1).max(80)).max(50).default([]),
+  tts_enabled: z.boolean().default(false),
+  tts_voice: z.enum(["nova", "shimmer", "alloy", "echo", "onyx", "fable"]).default("nova"),
 });
 export type TenantInput = z.infer<typeof tenantSchema>;
 

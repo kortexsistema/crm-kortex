@@ -253,7 +253,7 @@ export async function processSentiment(event: EventRow): Promise<SentimentResult
       //
       // O `throw` mantém o desfecho de antes — quem decide o retorno continua
       // sendo o catch global, que nunca deixa este worker derrubar o bot.
-      logInvocation({
+      await logInvocation({
         organization_id: event.organization_id,
         agent_id: agent?.id ?? null,
         conversation_id: conversationId ?? message.conversation_id ?? null,
@@ -296,7 +296,7 @@ export async function processSentiment(event: EventRow): Promise<SentimentResult
     }
 
     // ── Log invocation (fire-and-forget) ──────────────────────────────────
-    logInvocation({
+    await logInvocation({
       organization_id: event.organization_id,
       // `null`, não `""` (issue #160): o worker roda mesmo sem agente ativo — lê
       // o agente só para o threshold e cai no default —, e string vazia numa

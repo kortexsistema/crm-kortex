@@ -1,24 +1,12 @@
-/**
- * GET /api/v1/ai/usage — observability dashboard for AI invocations.
- *
- * Aggregates `ai_invocations` (cost, tokens, latency p50/p95, count) per day,
- * plus a per-day handoff rate (handoffs from `event_log` / inbound messages).
- *
- * Auth: cookie session, role manager+. organization_id resolved from JWT.
- *
- * Aggregation is done in TypeScript (see `lib/ai/usage/aggregate.ts`) so this
- * stays portable and unit-testable. We use the user-scoped client so RLS
- * enforces tenant isolation; the explicit organization_id filter is defense
- * in depth and required by repo convention.
- */
-import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { ok, fail } from "@/lib/api/wrappers";
-import { requireRole } from "@/lib/auth/require-role";
-import { createClient } from "@/lib/supabase/server";
+import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAggregatedUsage } from "@/lib/ai/usage/query";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { normalizarIdioma } from "@/lib/i18n/idiomas";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +37,6 @@ function resolveRange(qs: { from?: string; to?: string }): { from: Date; to: Dat
   const to = qs.to ? parseDayUtc(qs.to) : startOfUtcDay(now);
   let from = qs.from ? parseDayUtc(qs.from) : startOfUtcDay(new Date(now.getTime() - 29 * 86_400_000));
 
-  // Hard-cap range to MAX_RANGE_DAYS.
   const diffDays = Math.round((to.getTime() - from.getTime()) / 86_400_000);
   if (diffDays > MAX_RANGE_DAYS - 1) {
     from = new Date(to.getTime() - (MAX_RANGE_DAYS - 1) * 86_400_000);
@@ -60,16 +47,19 @@ function resolveRange(qs: { from?: string; to?: string }): { from: Date; to: Dat
   return { from: startOfUtcDay(from), to: startOfUtcDay(to) };
 }
 
-export async function GET(req: NextRequest): Promise<Response> {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Response> {
   const requestId = randomUUID();
+  const { id: tenantId } = await params;
 
-  const authz = await requireRole("manager", { requestId, resource: "ai_usage" });
-  if (!authz.ok) return authz.response;
-  const t = (texto: string) => traduzir(texto, authz.user.idioma);
-  const { org: activeOrg } = authz;
+  const authz = await requirePlatformAdmin();
+  const idioma = normalizarIdioma((authz.user.user_metadata?.locale as string | undefined) ?? null);
+  const t = (texto: string) => traduzir(texto, idioma);
 
   const parsed = querySchema.safeParse(
-    Object.fromEntries(req.nextUrl.searchParams.entries()),
+    Object.fromEntries(req.nextUrl.searchParams.entries())
   );
   if (!parsed.success) {
     return fail("validation_failed", t("Filtros inválidos."), 422, {
@@ -79,13 +69,10 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   const range = resolveRange(parsed.data);
-  const fromIso = range.from.toISOString();
-  const toIso = endOfUtcDay(range.to).toISOString();
-
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   try {
-    const payload = await fetchAggregatedUsage(supabase, activeOrg.orgId, range, {
+    const payload = await fetchAggregatedUsage(supabase, tenantId, range, {
       agent_id: parsed.data.agent_id,
       invocation_kind: parsed.data.invocation_kind,
     });

@@ -32,6 +32,7 @@ export type { SendOutcome, SendLedgerStatus } from './send-ledger';
 import { ApiError } from '@/lib/api/types';
 import { sendMessageHandler } from '@/app/api/v1/messages/_handler';
 import type { Message } from '@/lib/types/messaging';
+import { OpenAIAdapter } from '@/lib/ai/adapters/openai.adapter';
 
 import type { Queryable } from '../../queue/queue';
 import { cancelJob, rescheduleJob, type JobRow } from '../../queue/queue';
@@ -63,6 +64,8 @@ export interface SendMessageInput {
    * colidirem no ledger e o segundo virar `already_sent` sem ter saído.
    */
   template?: { name: string; language: string; values: Record<string, string> };
+  /** Quando true, converte o texto para áudio via Text-to-Speech antes de enviá-lo ao lead. */
+  audio_response?: boolean;
 }
 
 /** Fallback do ator ai_agent quando não há agente publicado (cfg.agentActorId). */
@@ -127,8 +130,35 @@ export async function sendTurnMessage(
     if (policy.body !== input.body || policy.conversation_id !== input.conversationId)
       throw new StaleServiceBoundaryError();
   }
+  const { rows: orgRows } = await db.query<{ settings: Record<string, unknown> | null }>(
+    'select settings from organizations where id=$1',
+    [input.tenantId],
+  );
+  const ttsEnabled = (orgRows[0]?.settings as { tts_enabled?: boolean })?.tts_enabled === true;
+  const ttsVoice = (orgRows[0]?.settings as { tts_voice?: string })?.tts_voice ?? 'nova';
+
   return sendWithLedger(pgSendLedger(db), input, async (idempotencyKey, messageId) => {
     let message: Message;
+    let audioPath: string | undefined;
+
+    if (input.audio_response && ttsEnabled) {
+      try {
+        const adapter = new OpenAIAdapter();
+        const audioBuffer = await adapter.textToSpeech(input.body, ttsVoice);
+        const fileName = `${input.tenantId}/${input.conversationId}/${Date.now()}_tts.ogg`;
+        const { error: uploadErr } = await cfg.supabase.storage
+          .from('whatsapp-media')
+          .upload(fileName, audioBuffer, { contentType: 'audio/ogg', upsert: true });
+        if (!uploadErr) {
+          audioPath = fileName;
+        } else {
+          console.error('[sendTurnMessage] falha ao fazer upload do audio TTS:', uploadErr.message);
+        }
+      } catch (err) {
+        console.error('[sendTurnMessage] falha ao gerar audio TTS:', err instanceof Error ? err.message : String(err));
+      }
+    }
+
     try {
       message = await sendMessageHandler(
         cfg.supabase,
@@ -152,9 +182,13 @@ export async function sendTurnMessage(
                 template_language: input.template.language,
                 template_values: input.template.values,
               }
-            : { type: 'text' as const }),
+            : audioPath ? {
+                type: 'audio' as const,
+                media_storage_path: audioPath,
+                media_mime: 'audio/ogg'
+              } : { type: 'text' as const }),
           body: input.body,
-          metadata: { idempotency_key: idempotencyKey },
+          metadata: { idempotency_key: idempotencyKey, ...(audioPath ? { ai_tts: true } : {}) },
         },
       );
     } catch (err) {

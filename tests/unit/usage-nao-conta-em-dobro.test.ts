@@ -18,7 +18,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-const ROTA = "app/api/v1/ai/usage/route.ts";
+const ROTA = "lib/ai/usage/query.ts";
 const LOG = "lib/ai/log-invocation.ts";
 
 describe("a rota de uso lê UMA tabela de telemetria", () => {

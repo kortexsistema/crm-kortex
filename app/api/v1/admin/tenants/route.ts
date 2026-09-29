@@ -80,6 +80,8 @@ export async function GET(req: NextRequest) {
       status,
       plan,
       subscription_expires_at,
+      saas_subscription_value_cents,
+      saas_enforcement_mode,
       onboarded_at,
       suspended_at,
       created_at,

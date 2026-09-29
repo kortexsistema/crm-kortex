@@ -40,6 +40,8 @@ export interface ChannelSendInput {
     /** Valor por slot, chaveado por `slotKey` — a mesma chave da tela. */
     values: Record<string, string>;
   };
+  /** Quando true, converte o texto para áudio via Text-to-Speech antes de enviá-lo ao lead. */
+  audio_response?: boolean;
 }
 
 /**

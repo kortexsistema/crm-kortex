@@ -272,7 +272,7 @@ export async function processMessageReceived(row: EventRow): Promise<ProcessResu
           source: "g3_low_confidence",
         },
       });
-      logInvocation({
+      await logInvocation({
         organization_id: ctx.organization_id,
         agent_id: ctx.agent.id,
         conversation_id: ctx.conversation_id,
@@ -298,7 +298,7 @@ export async function processMessageReceived(row: EventRow): Promise<ProcessResu
     }
 
     const persisted = await persistAndDispatch(ctx, response, post.text);
-    logInvocation({
+    await logInvocation({
       organization_id: ctx.organization_id,
       agent_id: ctx.agent.id,
       conversation_id: ctx.conversation_id,
@@ -324,7 +324,7 @@ export async function processMessageReceived(row: EventRow): Promise<ProcessResu
       message_id: ctx.message_id,
       error: detail,
     });
-    logInvocation({
+    await logInvocation({
       organization_id: ctx.organization_id,
       agent_id: ctx.agent.id,
       conversation_id: ctx.conversation_id,

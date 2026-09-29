@@ -45,6 +45,8 @@ export default async function TenantSettingsPage() {
     (row?.settings && Array.isArray((row.settings as { lost_reasons_extra?: unknown }).lost_reasons_extra)
       ? ((row.settings as { lost_reasons_extra?: string[] }).lost_reasons_extra ?? [])
       : []) as string[];
+  const ttsEnabled = (row?.settings as { tts_enabled?: boolean })?.tts_enabled ?? false;
+  const ttsVoice = (row?.settings as { tts_voice?: "nova" | "shimmer" | "alloy" | "echo" | "onyx" | "fable" })?.tts_voice ?? "nova";
   const idioma = user.idioma;
 
   return (
@@ -70,6 +72,8 @@ export default async function TenantSettingsPage() {
             dpo_email: row.dpo_email,
             privacy_policy_url: row.privacy_policy_url,
             lost_reasons_extra: lostReasonsExtra,
+            tts_enabled: ttsEnabled,
+            tts_voice: ttsVoice,
           }}
         />
       )}

@@ -185,9 +185,11 @@ export const AGENT_TOOL_DEFS = {
   },
   send_message: {
     description:
-      'Envia UMA mensagem de WhatsApp ao lead desta conversa. É o ÚNICO jeito de falar com o lead; texto fora desta tool nunca é enviado.',
+      'Envia UMA mensagem de WhatsApp ao lead desta conversa. É o ÚNICO jeito de falar com o lead; texto fora desta tool nunca é enviado. ' +
+      'Se for adequado responder com voz (por exemplo, se o cliente mandou áudio ou pediu uma mensagem de voz), você pode ativar o envio de áudio.',
     inputSchema: z.object({
       body: z.string().min(1).describe('corpo da mensagem, em pt-br, pronto para envio'),
+      audio_response: z.boolean().optional().describe('se verdadeiro, envia a mensagem como um áudio de voz (Text-to-Speech)'),
     }),
   },
   update_lead_state: {
@@ -2400,7 +2402,7 @@ async function executarTurnoDoAgente(
     }),
     send_message: tool({
       ...AGENT_TOOL_DEFS.send_message,
-      execute: async ({ body }) => {
+      execute: async ({ body, audio_response }) => {
         if (seq >= maxSendsPerTurn) {
           return {
             ok: false,
@@ -2505,6 +2507,7 @@ async function executarTurnoDoAgente(
                     seq,
                     conversationId: input.conversationId,
                     body: bubble,
+                    audio_response,
                   });
                 },
               }),

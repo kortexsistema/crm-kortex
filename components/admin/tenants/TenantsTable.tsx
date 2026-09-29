@@ -26,28 +26,43 @@ const STATUS_VARIANTS: Record<
   "success" | "info" | "warning" | "error" | "neutral"
 > = {
   active: "success",
-  onboarding: "info",
+  trial: "info",
+  expired: "error",
   suspended: "warning",
-  redacted: "error",
+  redacted: "neutral",
+  in_debt: "error",
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  active: "Ativo",
-  onboarding: "Onboarding",
+  active: "Assinante Ativo",
+  trial: "Em Teste",
+  expired: "Vencido",
   suspended: "Suspenso",
   redacted: "Redigido",
+  in_debt: "Inadimplente",
 };
 
 function StatusBadge({
   status,
   onboardedAt,
+  expiresAt,
 }: {
   status: string;
   onboardedAt: string | null;
+  expiresAt: string | null;
 }) {
   const t = useT();
-  // 'onboarding' não existe no banco — é derivado: ativo sem onboarding concluído.
-  const effective = status === "active" && !onboardedAt ? "onboarding" : status;
+  let effective = status;
+  
+  if (status === "active") {
+    if (!onboardedAt) {
+      effective = "trial";
+    } else if (expiresAt) {
+      const isExpired = new Date(expiresAt) < new Date();
+      effective = isExpired ? "expired" : "active";
+    }
+  }
+
   return (
     <Badge variant={STATUS_VARIANTS[effective] ?? "neutral"}>
       {t(STATUS_LABELS[effective] ?? effective)}
@@ -98,12 +113,11 @@ export function TenantsTableSkeleton() {
               "Slug",
               t("Nome"),
               "CNPJ",
-              t("Status"),
-              t("Plano"),
-              t("Vencimento"),
+              t("Status de Acesso"),
+              t("Plano / Vencimento"),
               t("Users"),
               t("Conversas"),
-              t("Criado em"),
+              t("Datas"),
               "",
             ].map((h) => (
               <TableHead key={h}>{h}</TableHead>
@@ -168,12 +182,11 @@ export function TenantsTable({
               <TableHead className="w-[140px]">Slug</TableHead>
               <TableHead>{t("Nome")}</TableHead>
               <TableHead className="w-[130px]">CNPJ</TableHead>
-              <TableHead className="w-[100px]">{t("Status")}</TableHead>
-              <TableHead className="w-[90px]">{t("Plano")}</TableHead>
-              <TableHead className="w-[110px]">{t("Vencimento")}</TableHead>
+              <TableHead className="w-[120px]">{t("Status de Acesso")}</TableHead>
+              <TableHead className="w-[150px]">{t("Plano / Vencimento")}</TableHead>
               <TableHead className="w-[65px] text-right">{t("Users")}</TableHead>
               <TableHead className="w-[85px] text-right">{t("Conversas")}</TableHead>
-              <TableHead className="w-[85px]">{t("Criado em")}</TableHead>
+              <TableHead className="w-[150px]">{t("Datas")}</TableHead>
               <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>
@@ -195,29 +208,27 @@ export function TenantsTable({
                     {shortCnpj(row.cnpj)}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={row.status} onboardedAt={row.onboarded_at} />
+                    <StatusBadge status={row.status} onboardedAt={row.onboarded_at} expiresAt={row.subscription_expires_at ?? null} />
                   </TableCell>
-                  <TableCell className="text-xs uppercase font-medium text-muted-foreground">
-                    {row.plan ?? "standard"}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {expiresAt ? (
-                      isExpired ? (
-                        <span className="font-semibold text-destructive">
-                          {formatDate(row.subscription_expires_at ?? null, tagDoIdioma)}
-                        </span>
-                      ) : daysLeft !== null && daysLeft <= 5 ? (
-                        <span className="font-medium text-amber-600 dark:text-amber-400">
-                          {formatDate(row.subscription_expires_at ?? null, tagDoIdioma)}
-                        </span>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs uppercase font-medium text-muted-foreground">
+                        {row.plan ?? "standard"}
+                      </span>
+                      {expiresAt ? (
+                        isExpired ? (
+                          <span className="text-xs font-semibold text-destructive">
+                            Expirou em: {formatDate(row.subscription_expires_at ?? null, tagDoIdioma)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Renova em: {formatDate(row.subscription_expires_at ?? null, tagDoIdioma)}
+                          </span>
+                        )
                       ) : (
-                        <span className="text-muted-foreground">
-                          {formatDate(row.subscription_expires_at ?? null, tagDoIdioma)}
-                        </span>
-                      )
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                        <span className="text-xs text-muted-foreground">Vitalício</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {extractCount(row.user_count)}
@@ -225,8 +236,13 @@ export function TenantsTable({
                   <TableCell className="text-right tabular-nums">
                     {extractCount(row.conversations_count)}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {formatDate(row.created_at, tagDoIdioma)}
+                  <TableCell>
+                    <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                      <span>Cad: {formatDate(row.created_at, tagDoIdioma)}</span>
+                      {row.suspended_at && (
+                        <span className="text-destructive">Susp: {formatDate(row.suspended_at, tagDoIdioma)}</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Link

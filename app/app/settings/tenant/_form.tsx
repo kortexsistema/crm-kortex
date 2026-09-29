@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -185,6 +186,43 @@ export function TenantForm({ initial }: Props) {
           <p className="text-xs text-muted-foreground">
             {t("Adicionados ao set padrão. Cada pipeline pode ter seus próprios motivos.")}
           </p>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex flex-row items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="tts_enabled">{t("Ativar Resposta por Voz (TTS)")}</Label>
+              <p className="text-sm text-muted-foreground">
+                {t("Permite que o assistente responda também enviando áudio gerado.")}
+              </p>
+            </div>
+            <Switch
+              id="tts_enabled"
+              checked={form.tts_enabled ?? false}
+              onCheckedChange={(c) => set("tts_enabled", c)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tts_voice">{t("Voz do Assistente")}</Label>
+            <Select
+              disabled={!form.tts_enabled}
+              value={form.tts_voice ?? "nova"}
+              onValueChange={(v) => set("tts_voice", v as "nova" | "shimmer" | "alloy" | "echo" | "onyx" | "fable")}
+            >
+              <SelectTrigger id="tts_voice">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nova">Nova (Feminina - Suave e Natural)</SelectItem>
+                <SelectItem value="shimmer">Shimmer (Feminina - Expressiva)</SelectItem>
+                <SelectItem value="alloy">Alloy (Neutra - Padrão)</SelectItem>
+                <SelectItem value="echo">Echo (Masculina - Equilibrada)</SelectItem>
+                <SelectItem value="onyx">Onyx (Masculina - Grave)</SelectItem>
+                <SelectItem value="fable">Fable (Masculina - Expressiva)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="flex sm:justify-end">

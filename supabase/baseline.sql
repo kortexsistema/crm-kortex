@@ -23474,8 +23474,7 @@ ALTER TABLE public.organizations
   ADD COLUMN IF NOT EXISTS saas_ai_limit_cents bigint,
   ADD COLUMN IF NOT EXISTS saas_enforcement_mode text NOT NULL DEFAULT 'off';
 
-DO $$
-BEGIN
+DO $baseline_guard$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint
     WHERE conname = 'organizations_saas_enforcement_mode_check'
@@ -23484,7 +23483,7 @@ BEGIN
       ADD CONSTRAINT organizations_saas_enforcement_mode_check
       CHECK (saas_enforcement_mode IN ('off', 'avisar', 'bloquear'));
   END IF;
-END $$;
+END $baseline_guard$;
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --

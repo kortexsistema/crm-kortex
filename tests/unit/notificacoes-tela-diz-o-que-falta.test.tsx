@@ -60,6 +60,14 @@ vi.mock("@/lib/auth/server", () => ({
 vi.mock("@/app/app/settings/notifications/_client", () => ({
   NotificationPrefsClient: () => <table />,
 }));
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: vi.fn().mockResolvedValue({
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: null })
+  })
+}));
 
 async function telaCom(chaves: boolean): Promise<string> {
   vapidPronto.mockReturnValue(chaves);

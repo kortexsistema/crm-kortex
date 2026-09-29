@@ -15,8 +15,8 @@ interface SingleResponse {
   data: UsagePayload;
 }
 
-export const aiUsageQueryKey = (filters: AiUsageFilters) =>
-  ["ai", "usage", filters] as const;
+export const aiUsageQueryKey = (filters: AiUsageFilters, tenantId?: string) =>
+  ["ai", "usage", filters, tenantId] as const;
 
 function toQs(filters: AiUsageFilters): string {
   const sp = new URLSearchParams();
@@ -28,14 +28,16 @@ function toQs(filters: AiUsageFilters): string {
   return qs ? `?${qs}` : "";
 }
 
-export function useAiUsage(filters: AiUsageFilters) {
+export function useAiUsage(filters: AiUsageFilters, tenantId?: string) {
   return useQuery({
-    queryKey: aiUsageQueryKey(filters),
+    queryKey: aiUsageQueryKey(filters, tenantId),
     queryFn: async () => {
       try {
-        const res = await apiClient.get<SingleResponse>(
-          `/api/v1/ai/usage${toQs(filters)}`,
-        );
+        const endpoint = tenantId 
+          ? `/api/v1/admin/tenants/${tenantId}/ai-usage${toQs(filters)}`
+          : `/api/v1/ai/usage${toQs(filters)}`;
+          
+        const res = await apiClient.get<SingleResponse>(endpoint);
         return res.data;
       } catch (err) {
         showApiError(err);

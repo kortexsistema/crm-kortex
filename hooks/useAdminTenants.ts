@@ -18,6 +18,8 @@ export interface AdminTenantRow {
   created_at: string;
   plan?: string | null;
   subscription_expires_at?: string | null;
+  saas_subscription_value_cents?: number | null;
+  saas_enforcement_mode?: string | null;
   user_count: Array<{ count: number }> | null;
   conversations_count: Array<{ count: number }> | null;
 }

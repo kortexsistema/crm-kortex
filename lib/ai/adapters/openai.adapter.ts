@@ -54,8 +54,37 @@ export class OpenAIAdapter implements AIAdapter {
     throw new Error('transcribeAudio not implemented for OpenAI adapter yet.');
   }
 
-  async textToSpeech(text: string, voiceId: string): Promise<Buffer> {
-    throw new Error('textToSpeech not implemented for OpenAI adapter yet.');
+  async textToSpeech(text: string, voiceId: string = 'alloy'): Promise<Buffer> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY is not defined in the environment.');
+    }
+    
+    try {
+      const response = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'tts-1',
+          input: text,
+          voice: voiceId,
+          response_format: 'ogg'
+        })
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new Error(`OpenAI TTS Error (${response.status}): ${errorBody}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error: unknown) {
+      this.handleError(error);
+    }
   }
 
   async analyzeDocument(documentBuffer: Buffer, prompt: string): Promise<AIResponse> {
