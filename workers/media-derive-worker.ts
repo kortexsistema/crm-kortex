@@ -151,7 +151,8 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
         });
         openaiKey = oa.apiKey;
       } catch {
-        openaiKey = null; // sem credencial e sem OPENAI_API_KEY: áudio fica sem transcrição
+        // Garante o fallback robusto para a chave global do .env se a org não tiver credencial dedicada na BD
+        openaiKey = process.env.OPENAI_API_KEY || null;
       }
     }
 
