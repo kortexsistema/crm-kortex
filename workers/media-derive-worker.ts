@@ -141,9 +141,11 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
     // Anthropic era enviada para a OpenAI e voltava 401 em toda tentativa
     // (visto nesta VPS: media.derive_requested preso com transcription_401,
     // e o cliente ouvindo "não consigo ouvir áudio" com a chave certa no .env).
+    // 1. Tenta obter a chave específica do provedor ou da organização
     let openaiKey: string | null = null;
+
     if (llm.provider === "openai") {
-      openaiKey = llm.apiKey;
+      openaiKey = llm.apiKey || null;
     } else {
       try {
         const oa = await resolveOrgLlmConfig(derivePool(), llmCfg, row.organization_id, {
@@ -151,9 +153,13 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
         });
         openaiKey = oa.apiKey;
       } catch {
-        // Garante o fallback robusto para a chave global do .env se a org não tiver credencial dedicada na BD
-        openaiKey = process.env.OPENAI_API_KEY || null;
+        openaiKey = null;
       }
+    }
+
+    // 2. FALLBACK GLOBAL UNIVERSAL: Se a chave ainda for nula, usa obrigatoriamente a chave global do .env
+    if (!openaiKey) {
+      openaiKey = process.env.OPENAI_API_KEY || null;
     }
 
     const deps = buildDeriveDeps(llm, openaiKey, row.organization_id, admin);
@@ -262,7 +268,7 @@ function buildDeriveDeps(
       const motivo = visao.sabemos
         ? `o modelo ${llm.defaultModel ?? "configurado"} não enxerga imagens`
         : `não sei se o modelo ${llm.defaultModel ?? "configurado"} enxerga imagens, ` +
-          `então não arrisquei enviar a foto — escolha um modelo do catálogo em Agente de IA → Provedores`;
+        `então não arrisquei enviar a foto — escolha um modelo do catálogo em Agente de IA → Provedores`;
       await avisarMidiaNaoLida(orgId, "imagem", motivo);
       return MARCADOR_NAO_LIDA;
     }
@@ -292,15 +298,15 @@ function buildDeriveDeps(
   const transcriber: DeriveDeps["transcriber"] = openaiKey
     ? apiTranscriptionProvider({ apiKey: openaiKey })
     : {
-        transcribe: async () => {
-          // Mesma razão da visão: devolver "" fazia o agente responder ao áudio
-          // como se ele não existisse. O aviso é o que dá ao operador a chance
-          // de cadastrar a chave — sem ele, o sintoma é indistinguível de "o
-          // agente é ruim".
-          await avisarMidiaNaoLida(orgId, "áudio", "falta uma chave da OpenAI para transcrever");
-          return MARCADOR_NAO_LIDA;
-        },
-      };
+      transcribe: async () => {
+        // Mesma razão da visão: devolver "" fazia o agente responder ao áudio
+        // como se ele não existisse. O aviso é o que dá ao operador a chance
+        // de cadastrar a chave — sem ele, o sintoma é indistinguível de "o
+        // agente é ruim".
+        await avisarMidiaNaoLida(orgId, "áudio", "falta uma chave da OpenAI para transcrever");
+        return MARCADOR_NAO_LIDA;
+      },
+    };
   return {
     transcriber,
     describeImage,
