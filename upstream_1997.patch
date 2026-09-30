@@ -1,0 +1,681 @@
+﻿diff --git a/.changes/espera-debounce-configuravel-por-agente.md b/.changes/espera-debounce-configuravel-por-agente.md
+new file mode 100644
+index 000000000..556206960
+--- /dev/null
++++ b/.changes/espera-debounce-configuravel-por-agente.md
+@@ -0,0 +1,8 @@
++---
++impacto: capacidade_nova
++secao: adicionado
++titulo: Espera antes de responder (janela de rajada) configur├ível por agente
++---
++No cadastro do agente, em "Freios de seguran├ºa", agora d├í para ajustar quanto tempo o agente espera antes de responder mensagens do mesmo contato que chegam em partes (ex.: "Obrigada" e, 14 s depois, "Tem piscina?"). Deixar o campo vazio usa a janela padr├úo da instala├º├úo (8 s), e o valor m├íximo ├® 60 segundos ÔÇö nada de travar o atendimento sem querer. N├úo muda nada para quem n├úo mexer: o campo ├® opcional e o comportamento de antes (janela padr├úo da instala├º├úo) segue valendo quando ele est├í vazio.
++
++Contribui├º├úo de @webtecnica (#1997).
+\ No newline at end of file
+diff --git a/app/api/v1/ai/agents/[id]/versions/[vid]/route.ts b/app/api/v1/ai/agents/[id]/versions/[vid]/route.ts
+index d22e87a0f..1609cd7d6 100644
+--- a/app/api/v1/ai/agents/[id]/versions/[vid]/route.ts
++++ b/app/api/v1/ai/agents/[id]/versions/[vid]/route.ts
+@@ -19,7 +19,7 @@ import { traduzir } from "@/lib/i18n/dicionario";
+ export const dynamic = "force-dynamic";
+ 
+ const VERSION_COLUMNS =
+-  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
++  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin,inbound_debounce_ms";
+ 
+ const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ 
+@@ -124,6 +124,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
+   if (patch.cases_enabled !== undefined) update.cases_enabled = patch.cases_enabled;
+   if (patch.split_messages !== undefined) update.split_messages = patch.split_messages;
+   if (patch.split_max_chars !== undefined) update.split_max_chars = patch.split_max_chars;
++  if (patch.inbound_debounce_ms !== undefined) update.inbound_debounce_ms = patch.inbound_debounce_ms;
+   if (patch.followup !== undefined) {
+     const existingFollowup =
+       existing.followup !== null &&
+diff --git a/app/api/v1/ai/agents/[id]/versions/route.ts b/app/api/v1/ai/agents/[id]/versions/route.ts
+index 05f00636b..42b3c3eb4 100644
+--- a/app/api/v1/ai/agents/[id]/versions/route.ts
++++ b/app/api/v1/ai/agents/[id]/versions/route.ts
+@@ -23,7 +23,7 @@ import { traduzir } from "@/lib/i18n/dicionario";
+ export const dynamic = "force-dynamic";
+ 
+ const VERSION_COLUMNS =
+-  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
++  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin,inbound_debounce_ms";
+ 
+ const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ 
+@@ -163,6 +163,7 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
+         cases_enabled: v.cases_enabled,
+         split_messages: v.split_messages,
+         split_max_chars: v.split_max_chars,
++        inbound_debounce_ms: v.inbound_debounce_ms,
+         followup: v.followup,
+         // Mesmo descarte silencioso da rota de cria├º├úo de agente: o corpo aceita
+         // e o INSERT ignorava. Criar uma vers├úo nova pela API com escopo ou
+diff --git a/app/api/v1/ai/agents/route.ts b/app/api/v1/ai/agents/route.ts
+index b789eaaaf..72f50cc16 100644
+--- a/app/api/v1/ai/agents/route.ts
++++ b/app/api/v1/ai/agents/route.ts
+@@ -48,7 +48,7 @@ const AGENT_COLUMNS_COM_VERSAO =
+   ", versao_publicada:ai_agent_versions!ai_agents_published_version_id_fkey(provider, model)";
+ 
+ const VERSION_COLUMNS =
+-  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
++  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin,inbound_debounce_ms";
+ 
+ // ---------------------------------------------------------------------------
+ // GET ÔÇö list
+diff --git a/app/app/ai/agents/[id]/_actions.ts b/app/app/ai/agents/[id]/_actions.ts
+index 9279f5a5c..0b070661e 100644
+--- a/app/app/ai/agents/[id]/_actions.ts
++++ b/app/app/ai/agents/[id]/_actions.ts
+@@ -38,7 +38,7 @@ import { VALID_TOOL_IDS } from "@/lib/mcp/tools";
+ const UUID_RX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+ 
+ const VERSION_COLUMNS =
+-  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
++  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin,inbound_debounce_ms";
+ 
+ type ActionResult<T = void> =
+   | { ok: true; data?: T }
+@@ -320,6 +320,7 @@ export async function saveAgentDraftAction(
+         knowledge_source_ids: v.knowledge_source_ids,
+         split_messages: v.split_messages,
+         split_max_chars: v.split_max_chars,
++        inbound_debounce_ms: v.inbound_debounce_ms ?? null,
+         followup: v.followup,
+         status: "draft",
+         created_by: authUser.id,
+@@ -537,6 +538,7 @@ export async function revertToVersionAction(
+     knowledge_source_ids: string[];
+     split_messages: boolean;
+     split_max_chars: number;
++    inbound_debounce_ms: number | null;
+   };
+   const src = source as unknown as SourceRow;
+ 
+@@ -586,6 +588,7 @@ export async function revertToVersionAction(
+         knowledge_source_ids: src.knowledge_source_ids ?? [],
+         split_messages: src.split_messages,
+         split_max_chars: src.split_max_chars,
++        inbound_debounce_ms: src.inbound_debounce_ms ?? null,
+         status: "draft",
+         created_by: authUser.id,
+       })
+@@ -739,6 +742,7 @@ export async function createMcpAgentAction(
+     cases_enabled: v.cases_enabled,
+     split_messages: v.split_messages,
+     split_max_chars: v.split_max_chars,
++    inbound_debounce_ms: v.inbound_debounce_ms ?? null,
+     // O corpo ACEITAVA estes cinco e o INSERT os descartava: criar o assistente
+     // pela tela com papel Operador, escopo de funil ou material marcado produzia
+     // uma vers├úo com tudo no default do banco ÔÇö desligado e vazio.
+diff --git a/app/app/ai/agents/[id]/_components/AgentForm.tsx b/app/app/ai/agents/[id]/_components/AgentForm.tsx
+index 1a38fb66a..de0600d6c 100644
+--- a/app/app/ai/agents/[id]/_components/AgentForm.tsx
++++ b/app/app/ai/agents/[id]/_components/AgentForm.tsx
+@@ -184,6 +184,8 @@ interface FormState {
+   cases_enabled: boolean;
+   split_messages: boolean;
+   split_max_chars: number;
++  /** Janela de rajada (ms) do agente. `null` = usa a env da instala├º├úo. */
++  inbound_debounce_ms: number | null;
+   followup: FollowupValue;
+   // Papel OPERADOR (spec 16 ┬º3.2) ÔÇö o que mexe no sistema depois da conversa.
+   operator_enabled: boolean;
+@@ -284,6 +286,7 @@ export function buildState(args: {
+     cases_enabled: version?.cases_enabled ?? false,
+     split_messages: version?.split_messages ?? false,
+     split_max_chars: version?.split_max_chars ?? 600,
++    inbound_debounce_ms: version?.inbound_debounce_ms ?? null,
+     followup: version?.followup
+       ? {
+           ...DEFAULT_FOLLOWUP,
+@@ -347,6 +350,7 @@ function toVersionPayload(s: FormState) {
+     cases_enabled: s.cases_enabled,
+     split_messages: s.split_messages,
+     split_max_chars: s.split_max_chars,
++    inbound_debounce_ms: s.inbound_debounce_ms,
+     followup: s.followup,
+     operator_enabled: s.operator_enabled,
+     // "" (n├úo escolheu) ÔåÆ null (herda o do Conversador). S├úo o mesmo conceito em
+@@ -1060,6 +1064,42 @@ export function AgentForm(props: Props) {
+                   disabled={disabled}
+                 />
+               </div>
++              <div className="col-span-2 space-y-1">
++                <Label htmlFor="inbound_debounce_ms">
++                  {t("Esperar antes de responder (segundos)")}
++                </Label>
++                <Input
++                  id="inbound_debounce_ms"
++                  type="number"
++                  min={0}
++                  max={60}
++                  step={1}
++                  placeholder={t("Vazio = padr├úo da instala├º├úo")}
++                  value={
++                    form.inbound_debounce_ms === null
++                      ? ""
++                      : String(Math.round(form.inbound_debounce_ms / 1000))
++                  }
++                  onChange={(e) => {
++                    const raw = e.target.value;
++                    // Vazio = usa a env da instala├º├úo (campo null). A UI fala em
++                    // SEGUNDOS; o banco e o worker falam em ms (convers├úo aqui,
++                    // num ponto s├│). Teto de 60s no campo espelha o do worker.
++                    patch({
++                      inbound_debounce_ms:
++                        raw === ""
++                          ? null
++                          : Math.round(Math.max(0, Math.min(60, Number(raw))) * 1000),
++                    });
++                  }}
++                  disabled={disabled}
++                />
++                <p className="text-xs text-muted-foreground">
++                  {t(
++                    "Mensagens do mesmo contato dentro desse tempo viram uma resposta s├│. Vazio usa a janela padr├úo da instala├º├úo (m├íximo 60 segundos).",
++                  )}
++                </p>
++              </div>
+             </div>
+           </Card>
+         </div>
+diff --git a/app/app/ai/agents/[id]/_components/VersionDiff.tsx b/app/app/ai/agents/[id]/_components/VersionDiff.tsx
+index a6e5045c3..e37f67d57 100644
+--- a/app/app/ai/agents/[id]/_components/VersionDiff.tsx
++++ b/app/app/ai/agents/[id]/_components/VersionDiff.tsx
+@@ -91,6 +91,7 @@ function buildFieldChanges(a: AgentVersionRow, b: AgentVersionRow): FieldChange[
+     ["cases_enabled", "cases_enabled"],
+     ["split_messages", "split_messages"],
+     ["split_max_chars", "split_max_chars"],
++    ["inbound_debounce_ms", "inbound_debounce_ms"],
+   ];
+   return fields
+     .filter(([k]) => a[k] !== b[k])
+diff --git a/app/app/ai/agents/[id]/page.tsx b/app/app/ai/agents/[id]/page.tsx
+index 18a39892b..3bb196e0d 100644
+--- a/app/app/ai/agents/[id]/page.tsx
++++ b/app/app/ai/agents/[id]/page.tsx
+@@ -26,7 +26,7 @@ const AGENT_COLUMNS =
+   "id, organization_id, name, description, model, system_prompt, is_active, is_default, kind, channel, priority, published_version_id, paused_at, operation_mode, operation_revision, archived_at, config, guardrails, active_kb_version_id, created_at, updated_at";
+ 
+ const VERSION_COLUMNS =
+-  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
++  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin,inbound_debounce_ms";
+ 
+ const CREDENTIAL_COLUMNS =
+   "id, organization_id, provider, label, api_key_last4, validated_at, validation_error, models_available, is_active, created_by, created_at, updated_at";
+diff --git a/hooks/ai/useAgentVersions.ts b/hooks/ai/useAgentVersions.ts
+index bf1df4144..93afd0b51 100644
+--- a/hooks/ai/useAgentVersions.ts
++++ b/hooks/ai/useAgentVersions.ts
+@@ -32,6 +32,7 @@ export interface AgentVersionRow {
+   knowledge_source_ids: string[];
+   split_messages: boolean;
+   split_max_chars: number;
++  inbound_debounce_ms: number | null;
+   followup: {
+     enabled: boolean;
+     flow_pointer_ids: string[];
+diff --git a/lib/agent-engine/agent/agent-config.ts b/lib/agent-engine/agent/agent-config.ts
+index 7cdf01370..2aa464fe0 100644
+--- a/lib/agent-engine/agent/agent-config.ts
++++ b/lib/agent-engine/agent/agent-config.ts
+@@ -36,6 +36,8 @@ export interface PublishedAgentConfig {
+   proposalAiDraftEnabled: boolean;
+   splitMessages: boolean;
+   splitMaxChars: number;
++  /** Janela de rajada inbound (ms) configurada na vers├úo. `null` = usa a env. */
++  inboundDebounceMs: number | null;
+   /** input multimodal (imagem/├íudio/pdf) habilitado no turno (Onda 3). */
+   multimodalInput: boolean;
+   /** tools open_human_case/provide_case_update habilitadas no turno (spec 15). */
+@@ -112,6 +114,7 @@ interface Row {
+   proposal_ai_draft_enabled: boolean;
+   split_messages: boolean;
+   split_max_chars: number;
++  inbound_debounce_ms: number | null;
+   multimodal_input: boolean;
+   cases_enabled: boolean;
+   followup: unknown;
+@@ -143,6 +146,7 @@ const SELECT_AGENT_CONFIG_COLUMNS = `a.operation_mode,a.paused_at,a.operation_re
+             v.proposal_ai_draft_enabled,
+             v.split_messages,
+             v.split_max_chars,
++            v.inbound_debounce_ms,
+             v.multimodal_input,
+             v.cases_enabled,
+             v.followup,
+@@ -200,6 +204,7 @@ function mapAgentConfigRow(r: Row): PublishedAgentConfig {
+     proposalAiDraftEnabled: r.proposal_ai_draft_enabled,
+     splitMessages: r.split_messages,
+     splitMaxChars: r.split_max_chars,
++    inboundDebounceMs: r.inbound_debounce_ms ?? null,
+     multimodalInput: r.multimodal_input,
+     casesEnabled: r.cases_enabled,
+     followup: r.followup,
+diff --git a/lib/agent-engine/agent/draft-reply.test.ts b/lib/agent-engine/agent/draft-reply.test.ts
+index f8eee5ccc..887e2dbb4 100644
+--- a/lib/agent-engine/agent/draft-reply.test.ts
++++ b/lib/agent-engine/agent/draft-reply.test.ts
+@@ -40,6 +40,7 @@ const AGENT: PublishedAgentConfig = {
+   proposalAiDraftEnabled: true,
+   splitMessages: false,
+   splitMaxChars: 400,
++  inboundDebounceMs: null,
+   multimodalInput: false,
+   casesEnabled: false,
+   toolIds: [],
+diff --git a/lib/agent-engine/agent/resolve-turn-agent.test.ts b/lib/agent-engine/agent/resolve-turn-agent.test.ts
+index 76ec451b4..fd1fba99d 100644
+--- a/lib/agent-engine/agent/resolve-turn-agent.test.ts
++++ b/lib/agent-engine/agent/resolve-turn-agent.test.ts
+@@ -26,6 +26,7 @@ function fakeConfig(agentId: string): PublishedAgentConfig {
+     proposalAiDraftEnabled: true,
+     splitMessages: false,
+     splitMaxChars: 900,
++    inboundDebounceMs: null,
+     multimodalInput: false,
+     casesEnabled: false,
+     toolIds: [],
+diff --git a/lib/agent-engine/edge/crm/debounce.test.ts b/lib/agent-engine/edge/crm/debounce.test.ts
+index 5e2274bc7..fa75086c6 100644
+--- a/lib/agent-engine/edge/crm/debounce.test.ts
++++ b/lib/agent-engine/edge/crm/debounce.test.ts
+@@ -1,7 +1,7 @@
+ import { expect, it, vi } from 'vitest';
+ import type pg from 'pg';
+ 
+-import { decidirRajada, janelaDeRajada } from './debounce';
++import { decidirRajada, janelaDeRajada, debounceEfetivo, TETO_DEBOUNCE_MS } from './debounce';
+ 
+ const alvo = { organizationId: 'org1', contactId: 'contato1' };
+ /** Instante fixo: a janela ├® aritm├®tica e o teste n├úo depende do rel├│gio. */
+@@ -70,3 +70,29 @@ it('janelaDeRajada: sem debounce n├úo h├í janela; com debounce a janela ├® agora
+   expect(janelaDeRajada(0, AGORA)).toBeUndefined();
+   expect(janelaDeRajada(750, AGORA)?.getTime()).toBe(AGORA + 750);
+ });
++
++// ÔöÇÔöÇ Leitor de debounce configur├ível por agente (issue #1856) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
++const ENV = 8_000;
++
++it('debounceEfetivo: campo vazio (null) usa o default da instala├º├úo ÔÇö regress├úo zero', () => {
++  expect(debounceEfetivo(null, ENV)).toBe(ENV);
++  expect(debounceEfetivo(undefined, ENV)).toBe(ENV);
++});
++
++it('debounceEfetivo: campo preenchido vence o default', () => {
++  expect(debounceEfetivo(20_000, ENV)).toBe(20_000);
++});
++
++it('debounceEfetivo: 0 desliga a coalesc├¬ncia ÔÇö n├úo herda nem clampa', () => {
++  expect(debounceEfetivo(0, ENV)).toBe(0);
++});
++
++it('debounceEfetivo: teto de 60s ÔÇö valor ACIMA do teto ├® clamado no limite', () => {
++  expect(TETO_DEBOUNCE_MS).toBe(60_000);
++  expect(debounceEfetivo(60_000, ENV)).toBe(60_000);
++  expect(debounceEfetivo(90_000, ENV)).toBe(60_000);
++});
++
++it('debounceEfetivo: valor NEGATIVO (dado sujo) clampa para 0, n├úo quebra', () => {
++  expect(debounceEfetivo(-5, ENV)).toBe(0);
++});
+diff --git a/lib/agent-engine/edge/crm/debounce.ts b/lib/agent-engine/edge/crm/debounce.ts
+index 4f406b58c..614d92f71 100644
+--- a/lib/agent-engine/edge/crm/debounce.ts
++++ b/lib/agent-engine/edge/crm/debounce.ts
+@@ -69,6 +69,29 @@ export function janelaDeRajada(debounceMs: number, agora: number = Date.now()):
+   return debounceMs > 0 ? new Date(agora + debounceMs) : undefined;
+ }
+ 
++/**
++ * Teto da janela de rajada configur├ível por agente (#1856): n├úo deixar ningu├®m
++ * travar o atendimento sem querer. Vale tamb├®m como default de tela/UX.
++ */
++export const TETO_DEBOUNCE_MS = 60_000;
++
++/**
++ * Janela de rajada EFETIVA de um agente.
++ *
++ * `null`/`undefined` (campo vazio na vers├úo) = o `INBOUND_DEBOUNCE_MS` da
++ * instala├º├úo ÔÇö regress├úo zero para quem nunca mexeu no campo. O valor
++ * configurado ├® CLAMPADO em [0, TETO_DEBOUNCE_MS]: 0 desliga a coalesc├¬ncia e
++ * valores acima do teto (dado sujo que entrou por fora da valida├º├úo) caem para
++ * 60s em vez de travar o atendimento.
++ */
++export function debounceEfetivo(
++  configurado: number | null | undefined,
++  padraoInstalacao: number,
++): number {
++  if (configurado === null || configurado === undefined) return padraoInstalacao;
++  return Math.min(Math.max(0, configurado), TETO_DEBOUNCE_MS);
++}
++
+ /** Decide entre carona em job existente e janela nova. */
+ export async function decidirRajada(
+   pool: pg.Pool,
+diff --git a/lib/agent-engine/edge/crm/drain.ts b/lib/agent-engine/edge/crm/drain.ts
+index b3d458e3f..a76163566 100644
+--- a/lib/agent-engine/edge/crm/drain.ts
++++ b/lib/agent-engine/edge/crm/drain.ts
+@@ -15,10 +15,11 @@
+ import { z } from 'zod';
+ import type pg from 'pg';
+ 
++import { loadConversationAgentConfig } from '../../agent/agent-config';
+ import { insertInboxItem } from '../../db/repository';
+ import type { Logger } from '../../obs/logger';
+ import { enqueueJob } from '../../queue/queue';
+-import { decidirRajada } from './debounce';
++import { decidirRajada, debounceEfetivo } from './debounce';
+ import { avisoDeEventoMorto, IA_QUE_NAO_RESPONDEU } from '@/lib/event-log/aviso-de-evento-morto';
+ import { TIPOS_DERIVAVEIS, DERIVACAO_TERMINADA } from '@/lib/messaging/media/derivable';
+ import { decidirElegibilidadeDaConversa } from '@/lib/ai/elegibilidade/consulta-pg';
+@@ -197,6 +198,45 @@ const TETO_ESPERA_DERIVACAO_MS = 120_000;
+ 
+ type DesfechoEvento = 'processado' | 'adiar';
+ 
++/**
++ * Janela de rajada EFETIVA para o evento: a configurada na vers├úo do agente
++ * desta conversa (#1856), com o `INBOUND_DEBOUNCE_MS` da instala├º├úo como
++ * default e clamp no teto de 60s (`debounceEfetivo`).
++ *
++ * A resolu├º├úo ├® a de `loadConversationAgentConfig` ÔÇö o `active_ai_agent_id` da
++ * conversa quando h├í dono expl├¡cito, sen├úo o agente publicado da sess├úo. N├âO ├®
++ * a resolu├º├úo completa do turno (`resolveTurnAgent`: router, classificador,
++ * campanha): numa conversa que o turno entregaria a outro agente sem torn├í-lo
++ * dono, vale a janela do agente da sess├úo (ou a env). Com o campo vazio
++ * (default de toda instala├º├úo) o valor vira o da env ÔÇö regress├úo zero.
++ *
++ * Falha da consulta N├âO derruba o evento: degrada para a env, como a checagem
++ * de elegibilidade acima. A janela ├® afina├º├úo, n├úo motivo para retry.
++ */
++async function debounceDoEvento(
++  pool: pg.Pool,
++  event: EventRow,
++  p: { conversation_id: string; channel_session_id: string },
++  padraoInstalacao: number,
++  log: Logger,
++): Promise<number> {
++  try {
++    const agentConfig = await loadConversationAgentConfig(
++      pool,
++      event.organization_id,
++      p.conversation_id,
++      p.channel_session_id,
++    );
++    return debounceEfetivo(agentConfig?.inboundDebounceMs ?? null, padraoInstalacao);
++  } catch (err) {
++    log.warn('drain: janela de rajada do agente n├úo resolveu ÔÇö usando a da instala├º├úo', {
++      event_id: event.id,
++      error: (err instanceof Error ? err.message : String(err)).slice(0, 160),
++    });
++    return padraoInstalacao;
++  }
++}
++
+ async function processEvent(
+   pool: pg.Pool,
+   event: EventRow,
+@@ -485,7 +525,7 @@ async function processEvent(
+   const rajada = await decidirRajada(
+     pool,
+     { organizationId: event.organization_id, contactId: p.contact_id },
+-    knobs.debounceMs,
++    await debounceDoEvento(pool, event, p, knobs.debounceMs, log),
+   );
+   if (rajada.tipo === 'coalescido') {
+     log.info('drain: rajada coalescida em job pendente', {
+diff --git a/lib/ai/agents/duplicate.ts b/lib/ai/agents/duplicate.ts
+index f319ffb42..8def57139 100644
+--- a/lib/ai/agents/duplicate.ts
++++ b/lib/ai/agents/duplicate.ts
+@@ -24,7 +24,7 @@ export const DUPLICATE_AGENT_COLUMNS =
+  * basta, se o INSERT n├úo a escreve a c├│pia nasce com o default do banco.
+  */
+ export const DUPLICATE_VERSION_COLUMNS =
+-  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
++  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, proposal_ai_draft_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin,inbound_debounce_ms";
+ 
+ export type DuplicateAgentError =
+   | "not_found"
+@@ -78,6 +78,7 @@ function versionPayloadFrom(src: Record<string, unknown>) {
+     operator_tool_ids: src.operator_tool_ids,
+     split_messages: src.split_messages,
+     split_max_chars: src.split_max_chars,
++    inbound_debounce_ms: src.inbound_debounce_ms ?? null,
+     followup: src.followup,
+     // ESCOPO. As duas faltavam ÔÇö `pipeline_ids` desde a 0125, e o cabe├ºalho
+     // deste arquivo j├í mandava ("coluna nova entra aqui E em
+diff --git a/lib/ai/agents/validation.ts b/lib/ai/agents/validation.ts
+index e4ba65d89..fb5736b07 100644
+--- a/lib/ai/agents/validation.ts
++++ b/lib/ai/agents/validation.ts
+@@ -169,6 +169,15 @@ const versionShapeSchema = z
+     // pelo pacing anti-ban. Defaults espelham a migration 0059.
+     split_messages: z.boolean().default(false),
+     split_max_chars: z.number().int().min(80).max(4000).default(600),
++    /**
++     * Janela de coalesc├¬ncia de rajada inbound para ESTE agente (ms).
++     *
++     * `null`/ausente = usa o `INBOUND_DEBOUNCE_MS` da instala├º├úo (comportamento
++     * de sempre ÔÇö regress├úo zero). 0 desliga a coalesc├¬ncia de rajada para o
++     * agente (job imediato). 1..60000 define a janela, com TETO de 60s para
++     * ningu├®m travar o atendimento sem querer (#1856).
++     */
++    inbound_debounce_ms: z.number().int().min(0).max(60000).nullable().optional(),
+     followup: followupConfigSchema,
+     // ÔöÇÔöÇ Papel OPERADOR (spec 16 ┬º3.2) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+     // Todos com `.default(...)`, e ├® o que mant├®m retrocompat├¡vel: agent e
+diff --git a/lib/database.types.ts b/lib/database.types.ts
+index 0191f777a..650366628 100644
+--- a/lib/database.types.ts
++++ b/lib/database.types.ts
+@@ -1820,6 +1820,7 @@ export type Database = {
+           history_message_window: number
+           history_token_window: number
+           id: string
++          inbound_debounce_ms: number | null
+           knowledge_source_ids: string[]
+           max_steps: number
+           model: string
+@@ -1858,6 +1859,7 @@ export type Database = {
+           history_message_window?: number
+           history_token_window?: number
+           id?: string
++          inbound_debounce_ms?: number | null
+           knowledge_source_ids?: string[]
+           max_steps?: number
+           model: string
+@@ -1896,6 +1898,7 @@ export type Database = {
+           history_message_window?: number
+           history_token_window?: number
+           id?: string
++          inbound_debounce_ms?: number | null
+           knowledge_source_ids?: string[]
+           max_steps?: number
+           model?: string
+diff --git a/lib/i18n/dicionario.ts b/lib/i18n/dicionario.ts
+index 1efbac489..d209e16f7 100644
+--- a/lib/i18n/dicionario.ts
++++ b/lib/i18n/dicionario.ts
+@@ -1722,6 +1722,11 @@ export const DICIONARIO: Traducoes = {
+   "Volume de texto por atendimento": { es: "Volumen de texto por atenci├│n" },
+   "Custo m├íximo por atendimento (centavos)": { es: "Costo m├íximo por atenci├│n (centavos)" },
+   "Mensagens anteriores que ele l├¬": { es: "Mensajes anteriores que lee" },
++  "Esperar antes de responder (segundos)": { es: "Esperar antes de responder (segundos)" },
++  "Mensagens do mesmo contato dentro desse tempo viram uma resposta s├│. Vazio usa a janela padr├úo da instala├º├úo (m├íximo 60 segundos).": {
++    es: "Los mensajes del mismo contacto dentro de este tiempo se convierten en una sola respuesta. Vac├¡o usa la ventana predeterminada de la instalaci├│n (m├íximo 60 segundos).",
++  },
++  "Vazio = padr├úo da instala├º├úo": { es: "Vac├¡o = predeterminado de la instalaci├│n" },
+   "Tamanho m├íximo desse hist├│rico": { es: "Tama├▒o m├íximo de ese historial" },
+   "As instru├º├Áes dele": { es: "Sus instrucciones" },
+   "Estilo de resposta": { es: "Estilo de respuesta" },
+diff --git a/lib/prospecting/agent-setup.ts b/lib/prospecting/agent-setup.ts
+index 027ef89e2..b9f3f963b 100644
+--- a/lib/prospecting/agent-setup.ts
++++ b/lib/prospecting/agent-setup.ts
+@@ -180,15 +180,21 @@ interface SetupMetadata {
+   proposal_hash?: string;
+   prepared_only?: boolean;
+ }
++// Colunas em que `null` na linha do banco ├® o mesmo que ausente na vers├úo montada: o hash
++// gravado na cria├º├úo parte do objeto parseado (sem a chave), e a confer├¬ncia parte da
++// linha lida (com `null`). Sem esta lista os dois hashes divergem e o setup recusa com
++// "O rascunho foi alterado" ÔÇö o que a 0498 (inbound_debounce_ms) fez nas 5 specs de
++// tests/invariants/prospecting-agent-setup.test.ts.
++// ponytail: lista expl├¡cita; coluna nullable nova em ai_agent_versions entra aqui (#2004).
++const NULO_E_AUSENTE = new Set(["trigger_config", "inbound_debounce_ms"]);
++
+ function versionHash(row: Record<string, unknown>) {
+   const keys = Object.keys(versionCreateSchema.shape);
+   return hash(
+     versionCreateSchema.parse(
+       Object.fromEntries(
+         keys
+-          .filter(
+-            (key) => row[key] !== undefined && !(key === "trigger_config" && row[key] === null),
+-          )
++          .filter((key) => row[key] !== undefined && !(NULO_E_AUSENTE.has(key) && row[key] === null))
+           .map((key) => [key, row[key]]),
+       ),
+     ),
+diff --git a/supabase/baseline.sql b/supabase/baseline.sql
+index 2f4437bc6..eeba65bb8 100644
+--- a/supabase/baseline.sql
++++ b/supabase/baseline.sql
+@@ -45291,3 +45291,22 @@ update public.agent_inbox_items i
+ create unique index if not exists agent_inbox_event_dead_aberto_unico
+   on public.agent_inbox_items (organization_id, kind, title)
+   where status = 'open' and kind = 'event_dead';
++
++-- ---- janela de rajada configur├ível por agente (migration 0498) ----
++-- 0498 (#1856, de @webtecnica): a janela que junta mensagens do MESMO contato
++-- numa resposta sai da env global `INBOUND_DEBOUNCE_MS` e vira campo da vers├úo
++-- do agente. NULL = usa a env da instala├º├úo (quem s├│ atualiza n├úo muda nada);
++-- 0 desliga; teto 60s. Par drop/add da CHECK para o `update.sh` reaplicar sem
++-- 'already exists'. Sem fun├º├úo nova (nada a revogar de anon).
++alter table public.ai_agent_versions
++  drop constraint if exists ai_agent_versions_inbound_debounce_ms_check;
++
++alter table public.ai_agent_versions
++  add column if not exists inbound_debounce_ms integer;
++
++comment on column public.ai_agent_versions.inbound_debounce_ms is
++  'Janela de coalesc├¬ncia de rajada inbound em ms para ESTE agente. NULL = usa o INBOUND_DEBOUNCE_MS da instala├º├úo; 0 = desliga a coalesc├¬ncia; teto 60s.';
++
++alter table public.ai_agent_versions
++  add constraint ai_agent_versions_inbound_debounce_ms_check
++  check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
+diff --git a/supabase/migrations/20260930150000_0498_debounce_rajada_configuravel.sql b/supabase/migrations/20260930150000_0498_debounce_rajada_configuravel.sql
+new file mode 100644
+index 000000000..882663d24
+--- /dev/null
++++ b/supabase/migrations/20260930150000_0498_debounce_rajada_configuravel.sql
+@@ -0,0 +1,40 @@
++-- ÔòÉÔòÉÔòÉ Debounce de rajada configur├ível por agente (0498) ÔòÉÔòÉÔòÉ
++--
++-- At├® aqui a janela que junta as mensagens do MESMO contato numa resposta s├│
++-- era s├│ a env do worker `INBOUND_DEBOUNCE_MS` (default 8000, em
++-- lib/agent-engine/env.ts): global ├á instala├º├úo, invis├¡vel na tela e exigindo
++-- acesso ├á VPS para mudar. Esta migration leva o valor para a vers├úo do agente
++-- (`ai_agent_versions.inbound_debounce_ms`).
++--
++-- Sem sem├óntica expl├¡cita ├® f├ícil errar o desenho, ent├úo a regra fica escrita:
++--   - NULL (default) = usa o `INBOUND_DEBOUNCE_MS` da instala├º├úo. Quem s├│
++--     atualiza n├úo muda de comportamento nenhum ÔÇö regress├úo zero.
++--   - 0 desliga a coalesc├¬ncia de rajada para aquele agente (job imediato).
++--   - 1..60000 define a janela em milissegundos, com TETO em 60s para ningu├®m
++--     travar o atendimento sem querer.
++-- O teto ├® refor├ºado no leitor do worker (`debounceEfetivo` em debounce.ts):
++-- a constraint abaixo ├® a cerca do banco, mas quem decide de verdade ├® o
++-- TypeScript, que clampa o valor contra o teto mesmo para dados sujos.
++--
++-- Por que coluna e n├úo jsonb: o resto da config "Limites do atendimento" da
++-- vers├úo (`max_steps`, `token_budget`, `history_message_window`, ÔÇª) vive em
++-- colunas tipadas nesta tabela, e o PATCH/INSERT da vers├úo as mapeia campo a
++-- campo. Nascer jsonb aqui seria divergir do vizinho sem CHECK forte nenhum.
++
++alter table public.ai_agent_versions
++  drop constraint if exists ai_agent_versions_inbound_debounce_ms_check;
++
++alter table public.ai_agent_versions
++  add column if not exists inbound_debounce_ms integer;
++
++comment on column public.ai_agent_versions.inbound_debounce_ms is
++  'Janela de coalesc├¬ncia de rajada inbound em ms para ESTE agente. NULL = usa o INBOUND_DEBOUNCE_MS da instala├º├úo; 0 = desliga a coalesc├¬ncia; teto 60s.';
++
++-- 0..60000 (0 desliga; 60000 = 60s, o teto que impede travar o atendimento).
++-- O `drop ÔÇª if exists` antes do `add` torna a migration reaplic├ível: o
++-- `update.sh` de quem j├í aplicou a 0498 roda o ap├¬ndice do baseline de novo, e
++-- `add constraint` sem guarda quebraria com 'already exists'. Mesmo par no
++-- ap├¬ndice do baseline.sql.
++alter table public.ai_agent_versions
++  add constraint ai_agent_versions_inbound_debounce_ms_check
++  check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
+\ No newline at end of file
+diff --git a/supabase/migrations/MANIFEST.md b/supabase/migrations/MANIFEST.md
+index 0f00ff003..ab3ac1bd6 100644
+--- a/supabase/migrations/MANIFEST.md
++++ b/supabase/migrations/MANIFEST.md
+@@ -485,4 +485,5 @@ To re-apply on a fresh Supabase project, replay the migrations in version order
+ | `20260930010300` | `0494_lgpd_cascata_banco_alcanca_notas_itens` | **A cascata do BANCO alcan├ºa `lead_notes`, `ai_agent_runs.tool_calls`, `lead_state` e `contacts.social_identity` (issue #1964, follow-up do #1958).** O gatilho da virada de `is_anonymized` (desenho da 0391, a porta que os DOIS caminhos de anonimiza├º├úo cruzam) passou a redigir tamb├®m: `lead_notes.headline`/`body` (e `embedding`) ÔåÆ `(anonimizado)`, `ai_agent_runs.tool_calls` ÔåÆ reda├º├úo que PRESERVA o nome da ferramenta e apaga argumentos/resultados (espelha `redigirToolCalls`/`serialize.ts`, com `redacted = true` em todo passo), `lead_state.next_action` ÔåÆ `null` e `qualification` ÔåÆ `{}`, e `contacts.social_identity` ÔåÆ `null` (o ├¡ndice ├║nico parcial `where social_identity is not null` torna anular seguro). Filtra organiza├º├úo **e** contato em todo passo; idempotente ÔÇö guard no WHERE repete o marcador de "j├í redigido" da app para a varredura di├íria n├úo reescrever o que j├í est├í anonimizado. `fn_lgpd_redigir_tool_calls(jsonb)` ├® fun├º├úo nova `immutable` revogada de `anon`/`authenticated` (├║nico chamador ├® o gatilho, `security definer` de dono postgres). Sem cura retroativa no corpo (a varredura di├íria da app j├í cura o que veio antes); ap├¬ndice idempotente no `baseline.sql` antes da VARREDURA anon. Gate: `tests/invariants/lgpd-cascata-do-banco-alcanca-notas-itens.test.ts`. |
+ | `20260930120000` | `0495_janela_de_resposta_separada` | **A janela de RESPOSTA sai da janela de DISPARO (#1983, de @suporteubere99-coder).** As duas coisas eram regidas por UM par de horas em `channel_knobs` (`window_start_hour`/`window_end_hour`, da 0010), ent├úo abrir o atendimento para 24h abria junto o disparo em massa, a prospec├º├úo e o `followup_turn` (retomada de conversa parada). Duas colunas nullable, `resposta_start_hour`/`resposta_end_hour`, sem DEFAULT: **NULL herda a janela de disparo, coluna a coluna** (`loadChannelKnobs` em `lib/agent-engine/pacing/store.ts` e `effectiveKnobs` em `lib/ai/pacing-knobs.ts`, a mesma regra que a ficha Anti-ban mostra no placeholder) ÔÇö quem s├│ atualiza n├úo muda de opera├º├úo. CHECK 0..23 / 1..24 com `drop ÔÇª if exists` antes do `add`. Um bloco `do` guardado renomeia `reengajar_start_hour`/`reengajar_end_hour` para o nome novo onde a primeira vers├úo do PR (nome antigo) j├í tinha sido aplicada. A separa├º├úo vive em `PacingInput.resposta` (omitido = disparo: todo chamador fora do turno de resposta fica na janela de disparo); s├│ `inbound_turn`/`case_reply_turn` passam `true` (`eTurnoDeResposta` em `inbound-turn.ts`), inclusive na pergunta do roteiro que sai no mesmo turno. `nextDayOpen` segue na janela de disparo: cap di├írio ├® prote├º├úo anti-ban. Cap, warm-up e throttle continuam para os dois lados. Sem fun├º├úo nova. Gates: `lib/agent-engine/pacing/janela-de-resposta.test.ts` e `tests/unit/protecao-de-envio-aceita-data-em-branco.test.ts` (0/24 aceito, 22/7 recusado com 422). |
+ | `20260930140000` | `0497_lgpd_anonimizar_apaga_transcricao` | **Anonimizar apaga tamb├®m a TRANSCRI├ç├âO da m├¡dia (`messages.media_derived_text`).** Achado na triagem do #1988 (@AlecLimaDev). A coluna (0058, gravada pelo `media-derive-worker`) n├úo era zerada por nenhum caminho: o body do ├íudio virava `[mensagem anonimizada]` e a transcri├º├úo continuava leg├¡vel para o agente. Uma linha `media_derived_text = null` em cada UPDATE de messages de `fn_redigir_conversas_ao_anonimizar` (corpo da 0494, 2 passadas) e de `fn_lgpd_cascade_redact_contact` (corpo da 0483, passo 3) ÔÇö nenhuma outra linha muda. Cura idempotente das mensagens j├í anonimizadas pelo marcador do body (alcan├ºa grupos e poupa quem voltou). A varredura di├íria de `lib/lgpd/cascata.ts` ganha o mesmo passo, e fecha a corrida do worker que grava o texto depois da anonimiza├º├úo. |
++| `20260930150000` | `0498_debounce_rajada_configuravel` | **A janela de rajada do WhatsApp vira campo da vers├úo do agente (#1856).** A janela que junta mensagens do MESMO contato numa resposta s├│ era s├│ a env do worker `INBOUND_DEBOUNCE_MS` (global, invis├¡vel na tela, exige VPS). Coluna `ai_agent_versions.inbound_debounce_ms` (integer, sem DEFAULT): NULL = usa a env da instala├º├úo (regress├úo zero para quem s├│ atualiza), 0 desliga a coalesc├¬ncia, 1..60000 define a janela em ms com TETO de 60s ÔÇö o teto ├® refor├ºado no leitor do worker (`debounceEfetivo` em `lib/agent-engine/edge/crm/debounce.ts`) e com CHECK `0..60000` no banco (par drop/add pra reaplicar). O drain l├¬ a config do agente da conversa (`loadConversationAgentConfig`) e usa o valor do agente no lugar do literal. Gate: `lib/agent-engine/edge/crm/debounce.test.ts` (default = env, campo = valor, teto clamp no limite). |
+ | `20260930160000` | `0499_atraso_humano_por_conexao` | **O atraso humano vira configura├º├úo por conex├úo (issue #653).** Os quatro n├║meros que governam o atraso ANTES da primeira bolha (`atraso_notar_ms`/`ms_por_caractere`/`atraso_minimo_ms`/`atraso_maximo_ms`) saem do literal em `atraso-humano.ts` e passam a ser 4 colunas NULL em `channel_knobs` (a MESMA tabela dos knobs de pacing por conex├úo ÔÇö 0010 e 0495; nada de tabela nova). NULL = default conservador em `defaults.ts` (900/22/1200/7500 ÔÇö os valores de antes: regress├úo zero). O jitter entre bolhas (`1200 + rand*800` em `inbound-turn.ts`) N├âO ganha coluna: ele j├í ├® `throttle_ms` + `jitter_max_ms` (defaults 1200/800) e passa apenas a LER os knobs da conex├úo em vez do literal. CHECK de sanidade (`atraso_maximo_ms >= atraso_minimo_ms`, teto intervalMaxMs); exposi├º├úo na ficha Anti-ban via `POST/GET /api/v1/ai/pacing`. Gate: `tests/unit/atraso-humano-knobs.test.ts`. |
+diff --git a/tests/unit/agent-version-columns-drift.test.ts b/tests/unit/agent-version-columns-drift.test.ts
+index c7af436fb..cc9ea72f6 100644
+--- a/tests/unit/agent-version-columns-drift.test.ts
++++ b/tests/unit/agent-version-columns-drift.test.ts
+@@ -122,3 +122,44 @@ describe("versionCreateSchema aceita as flags por-agente que a tela edita", () =
+     });
+   });
+ });
++
++/**
++ * O SELECT e o schema iguais ainda n├úo bastam: a server action da tela monta os
++ * INSERTs de vers├úo campo a campo. `inbound_debounce_ms` (#1856) entrou s├│ no
++ * PATCH de rascunho existente e ficou fora dos tr├¬s INSERTs ÔÇö salvar um agente
++ * publicado, reverter pelo Hist├│rico e criar pela tela gravavam NULL, e a janela
++ * voltava calada para a env. Este bloco l├¬ cada `.insert({ ... })` encadeado em
++ * `.from("ai_agent_versions")` da action e cobra a coluna em todos.
++ */
++function insertsDeVersao(source: string): string[] {
++  const blocos: string[] = [];
++  const re = /\.from\("ai_agent_versions"\)\s*\.insert\(\{/g;
++  for (let m = re.exec(source); m !== null; m = re.exec(source)) {
++    let i = m.index + m[0].length;
++    let nivel = 1;
++    for (; i < source.length && nivel > 0; i++) {
++      if (source[i] === "{") nivel++;
++      else if (source[i] === "}") nivel--;
++    }
++    blocos.push(source.slice(m.index, i));
++  }
++  return blocos;
++}
++
++describe("INSERTs de vers├úo da tela levam a janela de rajada", () => {
++  it("o extrator acusa um INSERT sem a coluna (controle positivo)", () => {
++    const sem = 'admin.from("ai_agent_versions").insert({ split_max_chars: 1, followup: { a: 1 } })';
++    const blocos = insertsDeVersao(sem);
++    expect(blocos).toHaveLength(1);
++    expect(blocos[0]).toContain("split_max_chars");
++    expect(blocos[0]).not.toContain("inbound_debounce_ms");
++  });
++
++  it("todo INSERT de ai_agent_versions em _actions.ts grava inbound_debounce_ms", () => {
++    const source = readFileSync(join(ROOT, "app/app/ai/agents/[id]/_actions.ts"), "utf8");
++    const blocos = insertsDeVersao(source);
++    expect(blocos.length).toBeGreaterThan(0);
++    const semColuna = blocos.filter((b) => !b.includes("inbound_debounce_ms"));
++    expect(semColuna.map((b) => b.slice(0, 200))).toEqual([]);
++  });
++});

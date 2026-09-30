@@ -37,6 +37,11 @@ export interface PacingKnobs {
   timezone: string;
   /** Degraus de warm-up ordenados por minAgeDays crescente (o primeiro cobre idade 0). */
   warmupDailyCaps: WarmupStep[];
+
+  atrasoNotarMs?: number;
+  msPorCaractere?: number;
+  atrasoMinimoMs?: number;
+  atrasoMaximoMs?: number;
 }
 
 /**

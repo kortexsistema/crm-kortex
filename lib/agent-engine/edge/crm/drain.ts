@@ -392,7 +392,20 @@ async function processEvent(
     }
   }
 
-  const runAfter = knobs.debounceMs > 0 ? new Date(Date.now() + knobs.debounceMs) : undefined;
+  // 0233: Janela de rajada específica do agente (se configurado, sobrepõe o global)
+  const { rows: agentConfigRows } = await pool.query<{ inbound_debounce_ms: number | null }>(
+    `select v.inbound_debounce_ms
+     from ai_agents a
+     join ai_agent_versions v on v.id = a.published_version_id
+     where a.organization_id = $1 and a.archived_at is null
+       and v.status = 'published' and v.channel_session_id = $2
+     limit 1`,
+    [event.organization_id, p.channel_session_id],
+  );
+  const agentDebounce = agentConfigRows[0]?.inbound_debounce_ms;
+  const effectiveDebounceMs = agentDebounce ?? knobs.debounceMs;
+
+  const runAfter = effectiveDebounceMs > 0 ? new Date(Date.now() + effectiveDebounceMs) : undefined;
   const { job, deduped } = await enqueueJob(pool, event.organization_id, {
     kind: 'inbound_turn',
     leadId: p.contact_id,

@@ -19,6 +19,10 @@ interface ChannelKnobsRow {
   timezone: string | null;
   warmup_daily_caps: unknown; // jsonb — shape validado em parseWarmupCaps (nunca confiado)
   number_activated_at: Date;
+  atraso_notar_ms?: number | null;
+  ms_por_caractere?: number | null;
+  atraso_minimo_ms?: number | null;
+  atraso_maximo_ms?: number | null;
 }
 
 /**
@@ -61,7 +65,8 @@ export async function loadChannelKnobs(
 ): Promise<ChannelPacingConfig> {
   const { rows } = await db.query<ChannelKnobsRow>(
     `select throttle_ms, jitter_max_ms, window_start_hour, window_end_hour,
-            allow_sunday, timezone, warmup_daily_caps, number_activated_at
+            allow_sunday, timezone, warmup_daily_caps, number_activated_at,
+            atraso_notar_ms, ms_por_caractere, atraso_minimo_ms, atraso_maximo_ms
      from channel_knobs
      where organization_id = $1 and channel_session_id = $2`,
     [tenantId, channelSessionId],
@@ -93,6 +98,10 @@ export async function loadChannelKnobs(
       allowSunday: row.allow_sunday ?? PACING_DEFAULTS.allowSunday,
       timezone: row.timezone ?? PACING_DEFAULTS.timezone,
       warmupDailyCaps,
+      atrasoNotarMs: row.atraso_notar_ms ?? undefined,
+      msPorCaractere: row.ms_por_caractere ?? undefined,
+      atrasoMinimoMs: row.atraso_minimo_ms ?? undefined,
+      atrasoMaximoMs: row.atraso_maximo_ms ?? undefined,
     },
     numberActivatedAt: row.number_activated_at,
   };

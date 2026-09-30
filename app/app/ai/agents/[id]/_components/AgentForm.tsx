@@ -151,6 +151,7 @@ interface FormState {
   cases_enabled: boolean;
   split_messages: boolean;
   split_max_chars: number;
+  inbound_debounce_ms: string;
   followup: FollowupValue;
   // Papel OPERADOR (spec 16 §3.2) — o que mexe no sistema depois da conversa.
   operator_enabled: boolean;
@@ -226,6 +227,7 @@ function buildState(args: {
     cases_enabled: version?.cases_enabled ?? false,
     split_messages: version?.split_messages ?? false,
     split_max_chars: version?.split_max_chars ?? 600,
+    inbound_debounce_ms: version?.inbound_debounce_ms?.toString() ?? "",
     followup: version?.followup ?? DEFAULT_FOLLOWUP,
     operator_enabled: version?.operator_enabled ?? false,
     // O form usa "" onde o banco usa null — Select controlado não aceita null.
@@ -278,6 +280,7 @@ function toVersionPayload(s: FormState) {
     cases_enabled: s.cases_enabled,
     split_messages: s.split_messages,
     split_max_chars: s.split_max_chars,
+    inbound_debounce_ms: s.inbound_debounce_ms ? Number(s.inbound_debounce_ms) : null,
     followup: s.followup,
     operator_enabled: s.operator_enabled,
     // "" (não escolheu) → null (herda o do Conversador). São o mesmo conceito em
@@ -484,6 +487,7 @@ export function AgentForm(props: Props) {
           cases_enabled: form.cases_enabled,
           split_messages: form.split_messages,
           split_max_chars: form.split_max_chars,
+          inbound_debounce_ms: form.inbound_debounce_ms ? Number(form.inbound_debounce_ms) : null,
           followup: form.followup,
           operator_enabled: form.operator_enabled,
           operator_model: form.operator_model.trim() === "" ? null : form.operator_model.trim(),
@@ -1031,6 +1035,29 @@ export function AgentForm(props: Props) {
                 ) : null}
               </div>
             ) : null}
+          </Card>
+
+          {/* Janela de Rajada */}
+          <Card className="space-y-2 p-4">
+            <h3 className="text-sm font-medium">{t("Janela de rajada")}</h3>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "Espera por mensagens fragmentadas. Se o cliente enviar várias mensagens curtas, o agente aguarda este tempo antes de responder.",
+              )}
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="inbound_debounce_ms">{t("Janela (ms) - Vazio = 8000ms")}</Label>
+              <Input
+                id="inbound_debounce_ms"
+                type="number"
+                min={0}
+                max={60000}
+                step={100}
+                value={form.inbound_debounce_ms}
+                onChange={(e) => patch({ inbound_debounce_ms: e.target.value })}
+                disabled={disabled}
+              />
+            </div>
           </Card>
 
           {/* Capacidades */}

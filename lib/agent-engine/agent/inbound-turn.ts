@@ -149,6 +149,7 @@ import { loadChannelProvider, runBeforeSend } from '../guardrails/before-send';
 import { isStatusSendable } from '../../channels/meta/template-binding';
 import { capabilitiesOf } from '@/lib/channels/capabilities';
 import { renderTemplateBody } from '@/lib/channels/meta/render-template';
+import { acenderDigitando, esperarComoHumano } from './atraso-humano';
 import { sendInBubbles } from './split-message';
 import type { DisclosureMode } from '../guardrails/disclosure/template';
 import { decidePromise } from '../guardrails/promise/engine';
@@ -1419,6 +1420,15 @@ async function executarTurnoDoAgente(
     lead_id: leadId,
   });
 
+  const pacingDoTurno = preview
+    ? undefined
+    : await loadChannelKnobs(pool, tenantId, input.channelSessionId, runLog);
+  const knobsDeAtrasoHumano = {
+    atrasoNotarMs: pacingDoTurno?.knobs.atrasoNotarMs,
+    msPorCaractere: pacingDoTurno?.knobs.msPorCaractere,
+    atrasoMinimoMs: pacingDoTurno?.knobs.atrasoMinimoMs,
+    atrasoMaximoMs: pacingDoTurno?.knobs.atrasoMaximoMs,
+  };
   // AS DUAS CAMADAS QUE CUSTAM DINHEIRO, resolvidas UMA vez por turno.
   //
   // Os knobs (`deps.knobs.jailbreak`, `deps.knobs.promiseSemantic`) nascem no boot
@@ -2490,12 +2500,21 @@ async function executarTurnoDoAgente(
               : {}),
             // `finalBody` = corpo após a cadeia (o disclosureGate F4-05 pode prependar o
             // disclosure via inject); é ELE que vai ao canal, não o `body` capturado da tool.
-            send: (finalBody: string) =>
-              sendInBubbles(finalBody, {
+            send: async (finalBody: string) => {
+              const ms = await esperarComoHumano({
+                texto: finalBody,
+                knobs: knobsDeAtrasoHumano,
+                sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+                log: runLog,
+              });
+
+              return sendInBubbles(finalBody, {
                 enabled: agentConfig?.splitMessages ?? false,
                 maxChars: agentConfig?.splitMaxChars ?? 600,
                 sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
-                jitter: () => 1200 + Math.floor(Math.random() * 800), // piso no throttle anti-ban (1.2s) — bolhas são mensagens físicas
+                jitter: () =>
+                  (pacingDoTurno?.knobs.throttleMs ?? 1200) +
+                  Math.floor(Math.random() * (pacingDoTurno?.knobs.jitterMaxMs ?? 800)),
                 send: (bubble): Promise<ChannelSendResult> => {
                   seq += 1;
                   return liveChannel().send({
@@ -2510,7 +2529,8 @@ async function executarTurnoDoAgente(
                     audio_response,
                   });
                 },
-              }),
+              });
+            },
           };
           let chain = await runBeforeSend(beforeSendArgs);
           if (chain.status === 'vetoed' && chain.code === 'case_promise_without_case') {

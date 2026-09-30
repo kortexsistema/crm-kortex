@@ -165,6 +165,10 @@ export interface ChannelKnobsRow {
   window_end_hour: number | null;
   allow_sunday: boolean | null;
   timezone: string | null;
+  atraso_notar_ms?: number | null;
+  ms_por_caractere?: number | null;
+  atraso_minimo_ms?: number | null;
+  atraso_maximo_ms?: number | null;
   warmup_daily_caps: unknown;
   /** idade do número p/ warm-up (linha ausente = engine trata como idade 0). */
   number_activated_at?: string | null;

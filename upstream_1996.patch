@@ -1,0 +1,838 @@
+﻿diff --git a/.changes/atraso-humano-por-conexao.md b/.changes/atraso-humano-por-conexao.md
+new file mode 100644
+index 000000000..12f7a032c
+--- /dev/null
++++ b/.changes/atraso-humano-por-conexao.md
+@@ -0,0 +1,13 @@
++---
++impacto: capacidade_nova
++secao: adicionado
++titulo: O tempo que o agente espera antes de responder passa a ser ajust├ível por n├║mero
++---
++
++A prote├º├úo de envio de cada n├║mero (em Conex├Áes ÔÇ║ Prote├º├úo de envio) ganhou quatro campos para o "tempo de pensar" do agente antes da primeira mensagem da resposta: o tempo para ver a notifica├º├úo, o tempo por caractere digitado, o m├¡nimo e o m├íximo. Campo vazio mant├®m exatamente o ritmo de antes (0,9 s + 22 ms por caractere, entre 1,2 s e 7,5 s). Um m├¡nimo acima do m├íximo ├® recusado na hora, com a explica├º├úo na tela.
++
++Quando a resposta sai em v├írias mensagens, o intervalo entre elas passa a seguir o "intervalo entre mensagens" configurado para o n├║mero, em vez de um valor fixo de 1,2 s a 2 s. Quem nunca mudou esse intervalo n├úo nota diferen├ºa; quem mudou v├¬ as mensagens da resposta seguindo o valor escolhido.
++
++N├úo ├® preciso fazer nada na instala├º├úo: a atualiza├º├úo acrescenta as colunas sozinha.
++
++Contribui├º├úo de @webtecnica (#1996), fechando a #653.
+diff --git a/app/api/v1/ai/pacing/route.ts b/app/api/v1/ai/pacing/route.ts
+index dfedff39f..606e712f4 100644
+--- a/app/api/v1/ai/pacing/route.ts
++++ b/app/api/v1/ai/pacing/route.ts
+@@ -31,7 +31,7 @@ export const dynamic = "force-dynamic";
+ const KNOB_COLUMNS =
+   // As duas janelas entram no SELECT: sem `resposta_*` aqui, a ficha Anti-ban
+   // mostraria 7h-22h como se fosse a janela da resposta ÔÇö e ├® a de DISPARO.
+-  "throttle_ms, jitter_max_ms, window_start_hour, window_end_hour, resposta_start_hour, resposta_end_hour, allow_sunday, timezone, warmup_daily_caps, number_activated_at";
++  "throttle_ms, jitter_max_ms, window_start_hour, window_end_hour, resposta_start_hour, resposta_end_hour, allow_sunday, timezone, warmup_daily_caps, number_activated_at, atraso_notar_ms, ms_por_caractere, atraso_minimo_ms, atraso_maximo_ms";
+ 
+ /**
+  * `organizations.timezone`, para a tela mostrar o fuso em que o motor avalia a
+@@ -167,6 +167,10 @@ export async function PUT(req: NextRequest): Promise<Response> {
+       window_end_hour: null,
+       resposta_start_hour: null,
+       resposta_end_hour: null,
++      atraso_notar_ms: null,
++      ms_por_caractere: null,
++      atraso_minimo_ms: null,
++      atraso_maximo_ms: null,
+       allow_sunday: null,
+       timezone: null,
+       warmup_daily_caps: null,
+@@ -195,6 +199,17 @@ export async function PUT(req: NextRequest): Promise<Response> {
+       { requestId },
+     );
+   }
++  // Atraso humano (0499), pelo mesmo par-resultante: com os dois gravados o
++  // CHECK do banco recusaria e a tela leria um 500 gen├®rico; com s├│ o m├¡nimo
++  // acima do teto padr├úo, o clamp ignoraria o m├¡nimo sem aviso.
++  if (eff.atrasoMinimoMs > eff.atrasoMaximoMs) {
++    return fail(
++      "validation_failed",
++      `Atraso humano inv├ílido: o m├¡nimo (${eff.atrasoMinimoMs} ms) precisa ser menor ou igual ao m├íximo (${eff.atrasoMaximoMs} ms).`,
++      422,
++      { requestId },
++    );
++  }
+ 
+   if (Object.keys(knobFields).length > 0) {
+     const { error: upErr } = await admin.from("channel_knobs").upsert(
+diff --git a/components/connections/AntiBanSheet.tsx b/components/connections/AntiBanSheet.tsx
+index 63ad82b41..a73366f37 100644
+--- a/components/connections/AntiBanSheet.tsx
++++ b/components/connections/AntiBanSheet.tsx
+@@ -42,6 +42,11 @@ interface FormState {
+   resposta_end_hour: string;
+   throttle_s: string;
+   jitter_s: string;
++  /** Atraso humano antes da 1┬¬ bolha (0499). '' = usar o padr├úo. */
++  atraso_notar_ms: string;
++  ms_por_caractere: string;
++  atraso_minimo_ms: string;
++  atraso_maximo_ms: string;
+   daily_message_limit: string;
+   allow_sunday: boolean;
+   timezone: string;
+@@ -59,6 +64,10 @@ function fromItem(item: PacingKnobsItem): FormState {
+     resposta_end_hour: o?.resposta_end_hour != null ? String(o.resposta_end_hour) : "",
+     throttle_s: o?.throttle_ms != null ? String(o.throttle_ms / 1000) : "",
+     jitter_s: o?.jitter_max_ms != null ? String(o.jitter_max_ms / 1000) : "",
++    atraso_notar_ms: o?.atraso_notar_ms != null ? String(o.atraso_notar_ms) : "",
++    ms_por_caractere: o?.ms_por_caractere != null ? String(o.ms_por_caractere) : "",
++    atraso_minimo_ms: o?.atraso_minimo_ms != null ? String(o.atraso_minimo_ms) : "",
++    atraso_maximo_ms: o?.atraso_maximo_ms != null ? String(o.atraso_maximo_ms) : "",
+     daily_message_limit:
+       item.channel_session.daily_message_limit != null
+         ? String(item.channel_session.daily_message_limit)
+@@ -147,6 +156,10 @@ export function AntiBanSheet({ item, canWrite, onClose }: Props) {
+         resposta_end_hour: intOrNull(form.resposta_end_hour),
+         throttle_ms: msOrNull(form.throttle_s),
+         jitter_max_ms: msOrNull(form.jitter_s),
++        atraso_notar_ms: intOrNull(form.atraso_notar_ms),
++        ms_por_caractere: intOrNull(form.ms_por_caractere),
++        atraso_minimo_ms: intOrNull(form.atraso_minimo_ms),
++        atraso_maximo_ms: intOrNull(form.atraso_maximo_ms),
+         // `null` quando o Switch est├í no default: salvar esta ficha por outro
+         // motivo (aquecimento, throttle) n├úo pode congelar o padr├úo do dia como
+         // escolha permanente ÔÇö foi assim que uma instala├º├úo ficou muda todo
+@@ -356,6 +369,77 @@ export function AntiBanSheet({ item, canWrite, onClose }: Props) {
+             </p>
+           </fieldset>
+ 
++          <fieldset className="flex flex-col gap-2">
++            <Label>{t("Atraso humano antes da primeira resposta (ms)")}</Label>
++            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
++              <label className="flex flex-col gap-0.5">
++                <span className="text-xs text-muted-foreground">{t("Ver a notifica├º├úo")}</span>
++                <Input
++                  type="number"
++                  min={0}
++                  max={item.bounds.intervalMaxMs}
++                  inputMode="numeric"
++                  placeholder={String(eff.atrasoNotarMs)}
++                  value={form.atraso_notar_ms}
++                  onChange={(e) => set({ atraso_notar_ms: e.target.value })}
++                  disabled={!canWrite}
++                  aria-label={t("Tempo para ver a notifica├º├úo em ms")}
++                  className="w-24"
++                />
++              </label>
++              <label className="flex flex-col gap-0.5">
++                <span className="text-xs text-muted-foreground">{t("Por caractere")}</span>
++                <Input
++                  type="number"
++                  min={0}
++                  max={item.bounds.msPorCaractereMax}
++                  inputMode="numeric"
++                  placeholder={String(eff.msPorCaractere)}
++                  value={form.ms_por_caractere}
++                  onChange={(e) => set({ ms_por_caractere: e.target.value })}
++                  disabled={!canWrite}
++                  aria-label={t("Milissegundos por caractere da resposta")}
++                  className="w-24"
++                />
++              </label>
++              <label className="flex flex-col gap-0.5">
++                <span className="text-xs text-muted-foreground">{t("M├¡nimo")}</span>
++                <Input
++                  type="number"
++                  min={0}
++                  max={item.bounds.intervalMaxMs}
++                  inputMode="numeric"
++                  placeholder={String(eff.atrasoMinimoMs)}
++                  value={form.atraso_minimo_ms}
++                  onChange={(e) => set({ atraso_minimo_ms: e.target.value })}
++                  disabled={!canWrite}
++                  aria-label={t("Atraso humano m├¡nimo em ms")}
++                  className="w-24"
++                />
++              </label>
++              <label className="flex flex-col gap-0.5">
++                <span className="text-xs text-muted-foreground">{t("M├íximo")}</span>
++                <Input
++                  type="number"
++                  min={0}
++                  max={item.bounds.atrasoMaximoMsMax}
++                  inputMode="numeric"
++                  placeholder={String(eff.atrasoMaximoMs)}
++                  value={form.atraso_maximo_ms}
++                  onChange={(e) => set({ atraso_maximo_ms: e.target.value })}
++                  disabled={!canWrite}
++                  aria-label={t("Atraso humano m├íximo em ms")}
++                  className="w-24"
++                />
++              </label>
++            </div>
++            <p className="text-xs text-muted-foreground">
++              {t(
++                "Quanto o agente \"pensa\" antes de mandar a primeira resposta (ver a notifica├º├úo + digita├º├úo por caractere, limitado entre o m├¡nimo e o m├íximo). Campo vazio usa o padr├úo ÔÇö r├ípido demais parece rob├┤; lento demais parece que caiu. N├úo mexe no intervalo entre mensagens.",
++              )}
++            </p>
++          </fieldset>
++
+           <fieldset className="flex flex-col gap-2">
+             <Label>{t("Teto di├írio de envios")}</Label>
+             <Input
+diff --git a/hooks/channels/usePacingKnobs.ts b/hooks/channels/usePacingKnobs.ts
+index 2dd20fec9..6f08ee499 100644
+--- a/hooks/channels/usePacingKnobs.ts
++++ b/hooks/channels/usePacingKnobs.ts
+@@ -30,6 +30,8 @@ export interface PacingKnobsItem {
+   defaults: PacingKnobs;
+   bounds: {
+     intervalMaxMs: number;
++    msPorCaractereMax: number;
++    atrasoMaximoMsMax: number;
+     hourLastStart: number;
+     hourEnd: number;
+     daily_limit: { min: number; max: number };
+diff --git a/lib/agent-engine/agent/atraso-humano.ts b/lib/agent-engine/agent/atraso-humano.ts
+index c048b9153..c336e987f 100644
+--- a/lib/agent-engine/agent/atraso-humano.ts
++++ b/lib/agent-engine/agent/atraso-humano.ts
+@@ -49,7 +49,10 @@
+  */
+ import type { Logger } from '../obs/logger';
+ 
+-/** Ver o cabe├ºalho: a parcela que n├úo depende do tamanho do texto. */
++/**
++ * Ver o cabe├ºalho: a parcela que n├úo depende do tamanho do texto.
++ * ├ë o DEFAULT ÔÇö quem configura por conex├úo (channel_knobs 0499) recebe outro.
++ */
+ export const ATRASO_NOTAR_MS = 900;
+ 
+ /** Ôëê45 caracteres/s ÔÇö r├ípido de prop├│sito; ver o cabe├ºalho. */
+@@ -61,14 +64,34 @@ export const ATRASO_MINIMO_MS = 1200;
+ /** Acima disto o sil├¬ncio l├¬ como queda, n├úo como digita├º├úo. */
+ export const ATRASO_MAXIMO_MS = 7500;
+ 
++/** Os quatro n├║meros do atraso humano ÔÇö o default ├® o do c├│digo de antes. */
++export interface AtrasoHumanoKnobs {
++  atrasoNotarMs?: number;
++  msPorCaractere?: number;
++  atrasoMinimoMs?: number;
++  atrasoMaximoMs?: number;
++}
++
++/** Os quatro n├║meros com o default do m├│dulo preenchido (NULL/ausente = valor de antes). */
++export function atrasoHumanoEfetivo(knobs: AtrasoHumanoKnobs | undefined): Required<AtrasoHumanoKnobs> {
++  return {
++    atrasoNotarMs: knobs?.atrasoNotarMs ?? ATRASO_NOTAR_MS,
++    msPorCaractere: knobs?.msPorCaractere ?? MS_POR_CARACTERE,
++    atrasoMinimoMs: knobs?.atrasoMinimoMs ?? ATRASO_MINIMO_MS,
++    atrasoMaximoMs: knobs?.atrasoMaximoMs ?? ATRASO_MAXIMO_MS,
++  };
++}
++
+ /**
+  * Quanto esperar antes de mandar `texto`, em ms. Pura ÔÇö ├® o que a torna
+- * test├ível sem rel├│gio e sem canal.
++ * test├ível sem rel├│gio e sem canal. `knobs` opcional: sem eles vale
++ * EXATAMENTE o comportamento hist├│rico (regress├úo zero).
+  */
+-export function calcularAtrasoHumano(texto: string): number {
++export function calcularAtrasoHumano(texto: string, knobs?: AtrasoHumanoKnobs): number {
++  const ef = atrasoHumanoEfetivo(knobs);
+   const comprimento = (texto ?? '').trim().length;
+-  const bruto = ATRASO_NOTAR_MS + MS_POR_CARACTERE * comprimento;
+-  return Math.min(ATRASO_MAXIMO_MS, Math.max(ATRASO_MINIMO_MS, bruto));
++  const bruto = ef.atrasoNotarMs + ef.msPorCaractere * comprimento;
++  return Math.min(ef.atrasoMaximoMs, Math.max(ef.atrasoMinimoMs, bruto));
+ }
+ 
+ export interface EsperaHumanaArgs {
+@@ -78,6 +101,11 @@ export interface EsperaHumanaArgs {
+   processamentoMs?: number;
+   sleep: (ms: number) => Promise<void>;
+   log: Logger;
++  /**
++   * Os quatro n├║meros do atraso por conex├úo (channel_knobs 0499). Omitir =
++   * comportamento hist├│rico (defaults de atraso-humano.ts).
++   */
++  knobs?: AtrasoHumanoKnobs;
+   /**
+    * Acende o "digitandoÔÇª" no aparelho do cliente. OPCIONAL: canal que n├úo sabe
+    * sinalizar presen├ºa simplesmente espera, e o ganho principal (n├úo responder
+@@ -101,7 +129,7 @@ export async function esperarComoHumano(args: EsperaHumanaArgs): Promise<number>
+   const gasto = args.processamentoMs ?? 0;
+   const ms = Math.max(
+     0,
+-    calcularAtrasoHumano(args.texto) - (Number.isFinite(gasto) ? Math.max(0, gasto) : 0),
++    calcularAtrasoHumano(args.texto, args.knobs) - (Number.isFinite(gasto) ? Math.max(0, gasto) : 0),
+   );
+ 
+   // O cliente j├í esperou o alvo: n├úo acrescentar presen├ºa decorativa nem sleep.
+diff --git a/lib/agent-engine/agent/inbound-turn.ts b/lib/agent-engine/agent/inbound-turn.ts
+index ee2572726..5566112bb 100644
+--- a/lib/agent-engine/agent/inbound-turn.ts
++++ b/lib/agent-engine/agent/inbound-turn.ts
+@@ -2620,6 +2620,19 @@ async function executarTurnoDoAgente(
+   // turno com dois vetos ficaria mudo por mais de 20 segundos: o conserto do
+   // "r├ípido demais" viraria o defeito sim├®trico, mais caro que o original.
+   let jaEsperouComoHumano = false;
++  // Knobs de atraso humano por conex├úo (0499) ÔÇö lidos UMA vez por turno para a
++  // pausa antes da 1┬¬ bolha (`esperarComoHumano`) e para o jitter entre bolhas
++  // (`throttle_ms + jitter_max_ms`). Sem linha em channel_knobs caem nos defaults
++  // de defaults.ts ÔÇö que espelham os valores hist├│ricos (regress├úo zero).
++  const pacingDoTurno = !preview
++    ? await loadChannelKnobs(pool, tenantId, input.channelSessionId, runLog)
++    : null;
++  const knobsDeAtrasoHumano = {
++    atrasoNotarMs: pacingDoTurno?.knobs.atrasoNotarMs,
++    msPorCaractere: pacingDoTurno?.knobs.msPorCaractere,
++    atrasoMinimoMs: pacingDoTurno?.knobs.atrasoMinimoMs,
++    atrasoMaximoMs: pacingDoTurno?.knobs.atrasoMaximoMs,
++  };
+   // Cap de envio (warm-up/di├írio) vetado neste turno ÔÇö capturado aqui porque o veto
+   // n├úo empurra outcome nenhum a `outcomes` (ver coment├írio no ponto de captura, mais
+   // abaixo). Diferente da janela hor├íria (checada ANTES do modelo rodar, linha ~1233):
+@@ -3169,6 +3182,9 @@ async function executarTurnoDoAgente(
+                     agentConfig?.splitMaxChars ?? 600,
+                     Math.max(1, maxSendsPerTurn - seq),
+                   )[0] ?? body,
++                // Os quatro n├║meros do atraso por conex├úo (0499). Vazios (sem
++                // linha em channel_knobs / preview) = defaults hist├│ricos.
++                knobs: knobsDeAtrasoHumano,
+                 // `processamentoMs` ├® a contribui├º├úo do #849 (@Teowfb): a pausa humana desconta o
+                 // tempo que o turno J├ü gastou pensando, em vez de somar em cima dele. Sem este
+                 // argumento o `gasto` de `atraso-humano.ts` cai no `?? 0` e o desconto n├úo acontece ÔÇö
+@@ -3192,7 +3208,13 @@ async function executarTurnoDoAgente(
+               corposEnviados.push(finalBody);
+               const sleep =
+                 deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+-              const jitter = () => 1200 + Math.floor(Math.random() * 800); // piso no throttle anti-ban (1.2s) ÔÇö bolhas s├úo mensagens f├¡sicas
++              const jitter = () =>
++                // Piso no throttle anti-ban do n├║mero (1.2s default) ÔÇö bolhas s├úo
++                // mensagens f├¡sicas. L├¬ os knobs da CONEX├âO (throttle_ms + jitter_max_ms,
++                // 0499) e n├úo o literal: desde a 0010 os dois j├í s├úo configura├º├úo por
++                // n├║mero, e o call site estava cravando `1200 + rand*800` ignorando-a.
++                (pacingDoTurno?.knobs.throttleMs ?? 1200) +
++                Math.floor(Math.random() * (pacingDoTurno?.knobs.jitterMaxMs ?? 800));
+               const enviar = (
+                 corpo: string,
+                 media?: FotoParaEnvio,
+diff --git a/lib/agent-engine/pacing/defaults.ts b/lib/agent-engine/pacing/defaults.ts
+index d7a0a2c5e..1cb12f7f2 100644
+--- a/lib/agent-engine/pacing/defaults.ts
++++ b/lib/agent-engine/pacing/defaults.ts
+@@ -21,6 +21,19 @@ export interface PacingKnobs {
+   throttleMs: number;
+   /** Teto do jitter rand├┤mico somado ao throttle e ao next_allowed_at (ms) ÔÇö intervalo fixo ├® assinatura de bot. */
+   jitterMaxMs: number;
++  /**
++   * Parcela FIXA do atraso humano antes da 1┬¬ bolha (ms): ver a notifica├º├úo,
++   * abrir a conversa, ler o que o cliente escreveu. Existe separada do termo
++   * proporcional porque mesmo um "Sim!" tem esse custo (atraso-humano.ts).
++   * NULL em channel_knobs = este default.
++   */
++  atrasoNotarMs: number;
++  /** Taxa de digita├º├úo do atraso humano (ms por caractere) ÔÇö default 22ms Ôëê 45 c/s. NULL = default. */
++  msPorCaractere: number;
++  /** Piso do atraso humano (ms) ÔÇö abaixo dele o atraso n├úo significa nada. NULL = default. */
++  atrasoMinimoMs: number;
++  /** Teto do atraso humano (ms) ÔÇö acima dele o sil├¬ncio l├¬ como queda. NULL = default. */
++  atrasoMaximoMs: number;
+   /**
+    * Janela hor├íria de DISPARO [start, end) na hora local do tenant ÔÇö vale para o
+    * disparo em massa (`lib/prospecting/worker.ts`) e para a retomada de conversa
+@@ -74,6 +87,10 @@ export interface PacingKnobs {
+ export const KNOB_BOUNDS = {
+   /** teto de intervalo/jitter aceito na UI (ms). */
+   intervalMaxMs: 600_000,
++  /** teto de ms_por_caractere aceito na UI (ms) ÔÇö 202ms Ôëê 5 c/s ├® absurdamente lento; nada real precisa de mais. */
++  msPorCaractereMax: 200,
++  /** teto do atraso m├íximo aceito na UI (ms) ÔÇö o piso ├® o default do anti-ban (1200). */
++  atrasoMaximoMsMax: 60_000,
+   /** maior hora aceita como IN├ìCIO de janela (fim vai at├® 24). */
+   hourLastStart: 23,
+   /** fim de janela ├® exclusivo e pode chegar ├á meia-noite seguinte. */
+@@ -83,6 +100,13 @@ export const KNOB_BOUNDS = {
+ export const PACING_DEFAULTS: PacingKnobs = {
+   throttleMs: 1200, // 1 msg / 1,2s
+   jitterMaxMs: 800,
++  // N├║meros do atraso humano antes da 1┬¬ bolha (atraso-humano.ts). Espelham os
++  // valores que foram SEMPRE os literais do m├│dulo ÔÇö regress├úo zero para quem
++  // nunca configurou. Coluna em channel_knobs NULL cai aqui.
++  atrasoNotarMs: 900,
++  msPorCaractere: 22,
++  atrasoMinimoMs: 1200,
++  atrasoMaximoMs: 7500,
+   windowStartHour: 7, // janela 7h-22h
+   windowEndHour: 22,
+   // Espelha a janela de disparo: quem nunca gravou as colunas `resposta_*`
+diff --git a/lib/agent-engine/pacing/store.ts b/lib/agent-engine/pacing/store.ts
+index e8de2ec90..a4afad58d 100644
+--- a/lib/agent-engine/pacing/store.ts
++++ b/lib/agent-engine/pacing/store.ts
+@@ -20,6 +20,11 @@ interface ChannelKnobsRow {
+   /** Janela da RESPOSTA do agente (0495). NULL = usa `window_*` (comportamento anterior). */
+   resposta_start_hour: number | null;
+   resposta_end_hour: number | null;
++  /** N├║meros do atraso humano antes da 1┬¬ bolha (0499). NULL = default (defaults.ts). */
++  atraso_notar_ms: number | null;
++  ms_por_caractere: number | null;
++  atraso_minimo_ms: number | null;
++  atraso_maximo_ms: number | null;
+   allow_sunday: boolean | null;
+   timezone: string | null;
+   warmup_daily_caps: unknown; // jsonb ÔÇö shape validado em parseWarmupCaps (nunca confiado)
+@@ -96,6 +101,7 @@ export async function loadChannelKnobs(
+   const { rows } = await db.query<ChannelKnobsRow>(
+     `select k.throttle_ms, k.jitter_max_ms, k.window_start_hour, k.window_end_hour,
+             k.resposta_start_hour, k.resposta_end_hour,
++            k.atraso_notar_ms, k.ms_por_caractere, k.atraso_minimo_ms, k.atraso_maximo_ms,
+             k.allow_sunday, k.timezone, k.warmup_daily_caps, k.number_activated_at,
+             o.timezone as org_timezone
+      from organizations o
+@@ -126,6 +132,10 @@ export async function loadChannelKnobs(
+     knobs: {
+       throttleMs: row.throttle_ms ?? PACING_DEFAULTS.throttleMs,
+       jitterMaxMs: row.jitter_max_ms ?? PACING_DEFAULTS.jitterMaxMs,
++      atrasoNotarMs: row.atraso_notar_ms ?? PACING_DEFAULTS.atrasoNotarMs,
++      msPorCaractere: row.ms_por_caractere ?? PACING_DEFAULTS.msPorCaractere,
++      atrasoMinimoMs: row.atraso_minimo_ms ?? PACING_DEFAULTS.atrasoMinimoMs,
++      atrasoMaximoMs: row.atraso_maximo_ms ?? PACING_DEFAULTS.atrasoMaximoMs,
+       windowStartHour: row.window_start_hour ?? PACING_DEFAULTS.windowStartHour,
+       windowEndHour: row.window_end_hour ?? PACING_DEFAULTS.windowEndHour,
+       // `null` nestas duas = o n├║mero nunca foi configurado com janela de
+diff --git a/lib/ai/pacing-knobs.ts b/lib/ai/pacing-knobs.ts
+index 1bc4f0648..a1b801142 100644
+--- a/lib/ai/pacing-knobs.ts
++++ b/lib/ai/pacing-knobs.ts
+@@ -111,6 +111,11 @@ export const pacingKnobsUpdateSchema = z
+     channel_session_id: z.string().uuid(),
+     throttle_ms: z.number().int().min(0).max(KNOB_BOUNDS.intervalMaxMs).nullable().optional(),
+     jitter_max_ms: z.number().int().min(0).max(KNOB_BOUNDS.intervalMaxMs).nullable().optional(),
++    // Atraso humano antes da 1┬¬ bolha (0499). null = voltar ao default (defaults.ts).
++    atraso_notar_ms: z.number().int().min(0).max(KNOB_BOUNDS.intervalMaxMs).nullable().optional(),
++    ms_por_caractere: z.number().int().min(0).max(KNOB_BOUNDS.msPorCaractereMax).nullable().optional(),
++    atraso_minimo_ms: z.number().int().min(0).max(KNOB_BOUNDS.intervalMaxMs).nullable().optional(),
++    atraso_maximo_ms: z.number().int().min(0).max(KNOB_BOUNDS.atrasoMaximoMsMax).nullable().optional(),
+     window_start_hour: z.number().int().min(0).max(KNOB_BOUNDS.hourLastStart).nullable().optional(),
+     window_end_hour: z.number().int().min(1).max(KNOB_BOUNDS.hourEnd).nullable().optional(),
+     /**
+@@ -174,6 +179,11 @@ export interface ChannelKnobsRow {
+   /** Janela da RESPOSTA (0495). Ausente/null = herda a janela de disparo. */
+   resposta_start_hour?: number | null;
+   resposta_end_hour?: number | null;
++  /** Atraso humano antes da 1┬¬ bolha (0499). Ausente/null = default. */
++  atraso_notar_ms?: number | null;
++  ms_por_caractere?: number | null;
++  atraso_minimo_ms?: number | null;
++  atraso_maximo_ms?: number | null;
+   allow_sunday: boolean | null;
+   timezone: string | null;
+   warmup_daily_caps: unknown;
+@@ -200,6 +210,10 @@ export function effectiveKnobs(row: ChannelKnobsRow | null, fusoDaOrg?: string |
+   return {
+     throttleMs: row?.throttle_ms ?? PACING_DEFAULTS.throttleMs,
+     jitterMaxMs: row?.jitter_max_ms ?? PACING_DEFAULTS.jitterMaxMs,
++    atrasoNotarMs: row?.atraso_notar_ms ?? PACING_DEFAULTS.atrasoNotarMs,
++    msPorCaractere: row?.ms_por_caractere ?? PACING_DEFAULTS.msPorCaractere,
++    atrasoMinimoMs: row?.atraso_minimo_ms ?? PACING_DEFAULTS.atrasoMinimoMs,
++    atrasoMaximoMs: row?.atraso_maximo_ms ?? PACING_DEFAULTS.atrasoMaximoMs,
+     windowStartHour: row?.window_start_hour ?? PACING_DEFAULTS.windowStartHour,
+     windowEndHour: row?.window_end_hour ?? PACING_DEFAULTS.windowEndHour,
+     // Mesma regra do store do engine: coluna vazia herda a janela de DISPARO.
+diff --git a/lib/automation/janela-do-canal.ts b/lib/automation/janela-do-canal.ts
+index 648eedaba..9e470839c 100644
+--- a/lib/automation/janela-do-canal.ts
++++ b/lib/automation/janela-do-canal.ts
+@@ -89,6 +89,12 @@ export async function knobsDoCanal(
+   return {
+     throttleMs: linha.throttle_ms ?? PACING_DEFAULTS.throttleMs,
+     jitterMaxMs: linha.jitter_max_ms ?? PACING_DEFAULTS.jitterMaxMs,
++    // Automa├º├úo ├® disparo em massa ÔÇö o atraso humano (0499) n├úo se aplica, mas
++    // o tipo PacingKnobs pede os quatro; herdam o default conservador.
++    atrasoNotarMs: PACING_DEFAULTS.atrasoNotarMs,
++    msPorCaractere: PACING_DEFAULTS.msPorCaractere,
++    atrasoMinimoMs: PACING_DEFAULTS.atrasoMinimoMs,
++    atrasoMaximoMs: PACING_DEFAULTS.atrasoMaximoMs,
+     windowStartHour: linha.window_start_hour ?? PACING_DEFAULTS.windowStartHour,
+     windowEndHour: linha.window_end_hour ?? PACING_DEFAULTS.windowEndHour,
+     // Automa├º├úo ├® disparo: nunca l├¬ a janela de resposta (0495). O par espelha o
+diff --git a/lib/database.types.ts b/lib/database.types.ts
+index b11ef833b..0191f777a 100644
+--- a/lib/database.types.ts
++++ b/lib/database.types.ts
+@@ -3951,6 +3951,10 @@ export type Database = {
+           warmup_daily_caps: Json | null
+           window_end_hour: number | null
+           window_start_hour: number | null
++          atraso_notar_ms: number | null
++          ms_por_caractere: number | null
++          atraso_minimo_ms: number | null
++          atraso_maximo_ms: number | null
+         }
+         Insert: {
+           allow_sunday?: boolean | null
+@@ -3967,6 +3971,10 @@ export type Database = {
+           warmup_daily_caps?: Json | null
+           window_end_hour?: number | null
+           window_start_hour?: number | null
++          atraso_notar_ms?: number | null
++          ms_por_caractere?: number | null
++          atraso_minimo_ms?: number | null
++          atraso_maximo_ms?: number | null
+         }
+         Update: {
+           allow_sunday?: boolean | null
+@@ -3983,6 +3991,10 @@ export type Database = {
+           warmup_daily_caps?: Json | null
+           window_end_hour?: number | null
+           window_start_hour?: number | null
++          atraso_notar_ms?: number | null
++          ms_por_caractere?: number | null
++          atraso_minimo_ms?: number | null
++          atraso_maximo_ms?: number | null
+         }
+         Relationships: [
+           {
+diff --git a/lib/i18n/dicionario.ts b/lib/i18n/dicionario.ts
+index ae14fa17d..1efbac489 100644
+--- a/lib/i18n/dicionario.ts
++++ b/lib/i18n/dicionario.ts
+@@ -5259,6 +5259,20 @@ export const DICIONARIO: Traducoes = {
+   "Intervalo m├¡nimo entre mensagens do mesmo n├║mero, mais uma varia├º├úo aleat├│ria ÔÇö ritmo cravado parece rob├┤ para o WhatsApp.": {
+     es: "Intervalo m├¡nimo entre mensajes del mismo n├║mero, m├ís una variaci├│n aleatoria. Un ritmo siempre igual hace que WhatsApp lo detecte como un robot.",
+   },
++  "Atraso humano antes da primeira resposta (ms)": {
++    es: "Retraso humano antes de la primera respuesta (ms)",
++  },
++  "Ver a notifica├º├úo": { es: "Ver la notificaci├│n" },
++  "M├¡nimo": { es: "M├¡nimo" },
++  "M├íximo": { es: "M├íximo" },
++  "Tempo para ver a notifica├º├úo em ms": { es: "Tiempo para ver la notificaci├│n en ms" },
++  "Por caractere": { es: "Por car├ícter" },
++  "Milissegundos por caractere da resposta": { es: "Milisegundos por car├ícter de la respuesta" },
++  "Atraso humano m├¡nimo em ms": { es: "Retraso humano m├¡nimo en ms" },
++  "Atraso humano m├íximo em ms": { es: "Retraso humano m├íximo en ms" },
++  "Quanto o agente \"pensa\" antes de mandar a primeira resposta (ver a notifica├º├úo + digita├º├úo por caractere, limitado entre o m├¡nimo e o m├íximo). Campo vazio usa o padr├úo ÔÇö r├ípido demais parece rob├┤; lento demais parece que caiu. N├úo mexe no intervalo entre mensagens.": {
++    es: "Cu├ínto \"piensa\" el agente antes de enviar la primera respuesta (ver la notificaci├│n + escritura por car├ícter, limitado entre un m├¡nimo y un m├íximo). Campo vac├¡o usa el est├índar: demasiado r├ípido parece robot; demasiado lento parece que se cay├│. No cambia el intervalo entre mensajes.",
++  },
+   "Teto di├írio de envios": { es: "Tope diario de env├¡os" },
+   "sem teto definido": { es: "sin tope definido" },
+   "Teto di├írio de mensagens": { es: "Tope diario de mensajes" },
+diff --git a/supabase/baseline.sql b/supabase/baseline.sql
+index df5efe542..2f4437bc6 100644
+--- a/supabase/baseline.sql
++++ b/supabase/baseline.sql
+@@ -45213,6 +45213,43 @@ alter table public.channel_knobs
+     and (resposta_end_hour is null or resposta_end_hour between 1 and 24)
+   );
+ 
++-- ---- atraso humano configur├ível por conex├úo (migration 0499) ----
++-- 0499 ÔÇö os quatro n├║meros do atraso humano ANTES da primeira bolha
++-- (`atraso-humano.ts`) viram knob por conex├úo (issue #653): NOTAR, POR_CARACTERE,
++-- MINIMO e MAXIMO, todos NULL = default em defaults.ts (900/22/1200/7500 ÔÇö os
++-- valores de antes, regress├úo zero). Nascem em `channel_knobs`, a mesma tabela
++-- dos knobs de pacing por conex├úo (0010 e 0495); nada de tabela nova. O jitter
++-- entre bolhas n├úo ganha coluna: ele j├í ├® `throttle_ms` + `jitter_max_ms`.
++-- Reaplic├ível: `add column if not exists` e `drop constraint if exists` antes
++-- do `add constraint` ÔÇö o `update.sh` roda o ap├¬ndice inteiro a cada atualiza├º├úo.
++alter table public.channel_knobs
++  add column if not exists atraso_notar_ms integer,
++  add column if not exists ms_por_caractere integer,
++  add column if not exists atraso_minimo_ms integer,
++  add column if not exists atraso_maximo_ms integer;
++
++comment on column public.channel_knobs.atraso_notar_ms is
++  'Parcela fixa do atraso humano (ms): ver a notifica├º├úo e abrir a conversa. NULL = default (900).';
++comment on column public.channel_knobs.ms_por_caractere is
++  'Taxa de digita├º├úo do atraso humano (ms por caractere). NULL = default (22).';
++comment on column public.channel_knobs.atraso_minimo_ms is
++  'Piso do atraso humano (ms). NULL = default (1200).';
++comment on column public.channel_knobs.atraso_maximo_ms is
++  'Teto do atraso humano (ms). NULL = default (7500).';
++
++alter table public.channel_knobs
++  drop constraint if exists channel_knobs_atraso_humano_saneamento;
++
++alter table public.channel_knobs
++  add constraint channel_knobs_atraso_humano_saneamento
++  check (
++    (atraso_notar_ms   is null or (atraso_notar_ms   between 0 and 600000))
++    and (ms_por_caractere is null or (ms_por_caractere between 0 and 1000))
++    and (atraso_minimo_ms is null or (atraso_minimo_ms between 0 and 600000))
++    and (atraso_maximo_ms is null or (atraso_maximo_ms between 0 and 600000))
++    and (atraso_maximo_ms is null or atraso_minimo_ms is null or atraso_maximo_ms >= atraso_minimo_ms)
++  );
++
+ -- ---- dedupe de event_dead at├┤mico: ├¡ndice ├║nico parcial (migration 0491) ----
+ -- 0491 ÔÇö o aviso `event_dead` n├úo abre em dobro com dois drenos concorrentes
+ -- (issue #880). O dedupe era uma pergunta seguida de uma escrita: `lib/event-log/
+diff --git a/supabase/migrations/20260930160000_0499_atraso_humano_por_conexao.sql b/supabase/migrations/20260930160000_0499_atraso_humano_por_conexao.sql
+new file mode 100644
+index 000000000..e49e71d3b
+--- /dev/null
++++ b/supabase/migrations/20260930160000_0499_atraso_humano_por_conexao.sql
+@@ -0,0 +1,52 @@
++-- ÔòÉÔòÉÔòÉ Atraso humano configur├ível por conex├úo (0499) ÔòÉÔòÉÔòÉ
++--
++-- Os quatro n├║meros que governam o atraso humano ANTES da primeira bolha
++-- (`lib/agent-engine/agent/atraso-humano.ts`) eram fixos em c├│digo: NOTAR
++-- (~900ms), POR_CARACTERE (~22ms), MINIMO (~1200ms) e MAXIMO (~7500ms), sem
++-- superf├¡cie. Uma cl├¡nica e um e-commerce querem ritmos diferentes, e os dois
++-- recebiam o mesmo valor cravado (issue #653, do achado no PR #644).
++--
++-- Estes quatro knobs nascem em `channel_knobs` ÔÇö a MESMA tabela que j├í guarda
++-- `throttle_ms`/`jitter_max_ms` (0010) e `resposta_*` (0495) por conex├úo.
++-- Coluna NULL = cai no default conservador em `defaults.ts`, que espelha os
++-- valores de antes: regress├úo zero para quem n├úo configurou.
++--
++-- Nenhuma migration nova se o mecanismo knob-por-conex├úo j├í existisse ÔÇö ele
++-- existe, e ├® `channel_knobs`. Estes s├úo s├│ quatro colunas novas na tabela
++-- existente, com o MESMO contrato das vizinhas (nullable, sem default).
++--
++-- O jitter entre bolhas (`1200 + rand*800` em `inbound-turn.ts`) N├âO ganha
++-- coluna nova: ele j├í ├® `throttle_ms + jitter_max_ms` (defaults 1200/800) ÔÇö
++-- o que mudou foi o call site passar a LER os knobs da conex├úo em vez do
++-- literal. O preenchimento acima e a exposi├º├úo na ficha Anti-ban valem para
++-- o par.
++
++alter table public.channel_knobs
++  add column if not exists atraso_notar_ms integer,
++  add column if not exists ms_por_caractere integer,
++  add column if not exists atraso_minimo_ms integer,
++  add column if not exists atraso_maximo_ms integer;
++
++comment on column public.channel_knobs.atraso_notar_ms is
++  'Parcela fixa do atraso humano (ms): ver a notifica├º├úo e abrir a conversa. NULL = default (900).';
++comment on column public.channel_knobs.ms_por_caractere is
++  'Taxa de digita├º├úo do atraso humano (ms por caractere). NULL = default (22).';
++comment on column public.channel_knobs.atraso_minimo_ms is
++  'Piso do atraso humano (ms). NULL = default (1200).';
++comment on column public.channel_knobs.atraso_maximo_ms is
++  'Teto do atraso humano (ms). NULL = default (7500).';
++
++-- Sanidade: valores positivos e dentro do mesmo teto dos vizinhos (intervalMaxMs).
++-- O `drop ÔÇª if exists` antes do `add` ├® o que torna o ap├¬ndice reaplic├ível.
++alter table public.channel_knobs
++  drop constraint if exists channel_knobs_atraso_humano_saneamento;
++
++alter table public.channel_knobs
++  add constraint channel_knobs_atraso_humano_saneamento
++  check (
++    (atraso_notar_ms   is null or (atraso_notar_ms   between 0 and 600000))
++    and (ms_por_caractere is null or (ms_por_caractere between 0 and 1000))
++    and (atraso_minimo_ms is null or (atraso_minimo_ms between 0 and 600000))
++    and (atraso_maximo_ms is null or (atraso_maximo_ms between 0 and 600000))
++    and (atraso_maximo_ms is null or atraso_minimo_ms is null or atraso_maximo_ms >= atraso_minimo_ms)
++  );
+\ No newline at end of file
+diff --git a/supabase/migrations/MANIFEST.md b/supabase/migrations/MANIFEST.md
+index a89375368..0f00ff003 100644
+--- a/supabase/migrations/MANIFEST.md
++++ b/supabase/migrations/MANIFEST.md
+@@ -485,3 +485,4 @@ To re-apply on a fresh Supabase project, replay the migrations in version order
+ | `20260930010300` | `0494_lgpd_cascata_banco_alcanca_notas_itens` | **A cascata do BANCO alcan├ºa `lead_notes`, `ai_agent_runs.tool_calls`, `lead_state` e `contacts.social_identity` (issue #1964, follow-up do #1958).** O gatilho da virada de `is_anonymized` (desenho da 0391, a porta que os DOIS caminhos de anonimiza├º├úo cruzam) passou a redigir tamb├®m: `lead_notes.headline`/`body` (e `embedding`) ÔåÆ `(anonimizado)`, `ai_agent_runs.tool_calls` ÔåÆ reda├º├úo que PRESERVA o nome da ferramenta e apaga argumentos/resultados (espelha `redigirToolCalls`/`serialize.ts`, com `redacted = true` em todo passo), `lead_state.next_action` ÔåÆ `null` e `qualification` ÔåÆ `{}`, e `contacts.social_identity` ÔåÆ `null` (o ├¡ndice ├║nico parcial `where social_identity is not null` torna anular seguro). Filtra organiza├º├úo **e** contato em todo passo; idempotente ÔÇö guard no WHERE repete o marcador de "j├í redigido" da app para a varredura di├íria n├úo reescrever o que j├í est├í anonimizado. `fn_lgpd_redigir_tool_calls(jsonb)` ├® fun├º├úo nova `immutable` revogada de `anon`/`authenticated` (├║nico chamador ├® o gatilho, `security definer` de dono postgres). Sem cura retroativa no corpo (a varredura di├íria da app j├í cura o que veio antes); ap├¬ndice idempotente no `baseline.sql` antes da VARREDURA anon. Gate: `tests/invariants/lgpd-cascata-do-banco-alcanca-notas-itens.test.ts`. |
+ | `20260930120000` | `0495_janela_de_resposta_separada` | **A janela de RESPOSTA sai da janela de DISPARO (#1983, de @suporteubere99-coder).** As duas coisas eram regidas por UM par de horas em `channel_knobs` (`window_start_hour`/`window_end_hour`, da 0010), ent├úo abrir o atendimento para 24h abria junto o disparo em massa, a prospec├º├úo e o `followup_turn` (retomada de conversa parada). Duas colunas nullable, `resposta_start_hour`/`resposta_end_hour`, sem DEFAULT: **NULL herda a janela de disparo, coluna a coluna** (`loadChannelKnobs` em `lib/agent-engine/pacing/store.ts` e `effectiveKnobs` em `lib/ai/pacing-knobs.ts`, a mesma regra que a ficha Anti-ban mostra no placeholder) ÔÇö quem s├│ atualiza n├úo muda de opera├º├úo. CHECK 0..23 / 1..24 com `drop ÔÇª if exists` antes do `add`. Um bloco `do` guardado renomeia `reengajar_start_hour`/`reengajar_end_hour` para o nome novo onde a primeira vers├úo do PR (nome antigo) j├í tinha sido aplicada. A separa├º├úo vive em `PacingInput.resposta` (omitido = disparo: todo chamador fora do turno de resposta fica na janela de disparo); s├│ `inbound_turn`/`case_reply_turn` passam `true` (`eTurnoDeResposta` em `inbound-turn.ts`), inclusive na pergunta do roteiro que sai no mesmo turno. `nextDayOpen` segue na janela de disparo: cap di├írio ├® prote├º├úo anti-ban. Cap, warm-up e throttle continuam para os dois lados. Sem fun├º├úo nova. Gates: `lib/agent-engine/pacing/janela-de-resposta.test.ts` e `tests/unit/protecao-de-envio-aceita-data-em-branco.test.ts` (0/24 aceito, 22/7 recusado com 422). |
+ | `20260930140000` | `0497_lgpd_anonimizar_apaga_transcricao` | **Anonimizar apaga tamb├®m a TRANSCRI├ç├âO da m├¡dia (`messages.media_derived_text`).** Achado na triagem do #1988 (@AlecLimaDev). A coluna (0058, gravada pelo `media-derive-worker`) n├úo era zerada por nenhum caminho: o body do ├íudio virava `[mensagem anonimizada]` e a transcri├º├úo continuava leg├¡vel para o agente. Uma linha `media_derived_text = null` em cada UPDATE de messages de `fn_redigir_conversas_ao_anonimizar` (corpo da 0494, 2 passadas) e de `fn_lgpd_cascade_redact_contact` (corpo da 0483, passo 3) ÔÇö nenhuma outra linha muda. Cura idempotente das mensagens j├í anonimizadas pelo marcador do body (alcan├ºa grupos e poupa quem voltou). A varredura di├íria de `lib/lgpd/cascata.ts` ganha o mesmo passo, e fecha a corrida do worker que grava o texto depois da anonimiza├º├úo. |
++| `20260930160000` | `0499_atraso_humano_por_conexao` | **O atraso humano vira configura├º├úo por conex├úo (issue #653).** Os quatro n├║meros que governam o atraso ANTES da primeira bolha (`atraso_notar_ms`/`ms_por_caractere`/`atraso_minimo_ms`/`atraso_maximo_ms`) saem do literal em `atraso-humano.ts` e passam a ser 4 colunas NULL em `channel_knobs` (a MESMA tabela dos knobs de pacing por conex├úo ÔÇö 0010 e 0495; nada de tabela nova). NULL = default conservador em `defaults.ts` (900/22/1200/7500 ÔÇö os valores de antes: regress├úo zero). O jitter entre bolhas (`1200 + rand*800` em `inbound-turn.ts`) N├âO ganha coluna: ele j├í ├® `throttle_ms` + `jitter_max_ms` (defaults 1200/800) e passa apenas a LER os knobs da conex├úo em vez do literal. CHECK de sanidade (`atraso_maximo_ms >= atraso_minimo_ms`, teto intervalMaxMs); exposi├º├úo na ficha Anti-ban via `POST/GET /api/v1/ai/pacing`. Gate: `tests/unit/atraso-humano-knobs.test.ts`. |
+diff --git a/tests/unit/atraso-humano-knobs.test.ts b/tests/unit/atraso-humano-knobs.test.ts
+new file mode 100644
+index 000000000..1b781fe29
+--- /dev/null
++++ b/tests/unit/atraso-humano-knobs.test.ts
+@@ -0,0 +1,107 @@
++import { describe, expect, it } from "vitest";
++
++import {
++  ATRASO_MAXIMO_MS,
++  ATRASO_MINIMO_MS,
++  ATRASO_NOTAR_MS,
++  MS_POR_CARACTERE,
++  atrasoHumanoEfetivo,
++  calcularAtrasoHumano,
++} from "@/lib/agent-engine/agent/atraso-humano";
++import { PACING_DEFAULTS } from "@/lib/agent-engine/pacing/defaults";
++import { effectiveKnobs } from "@/lib/ai/pacing-knobs";
++
++/**
++ * Issue #653 ÔÇö o atraso humano antes da 1┬¬ bolha vira knob por conex├úo.
++ *
++ * Os quatro n├║meros (`atraso_humano` NOTAR/POR_CARACTERE/MINIMO/MAXIMO) eram
++ * literais em `atraso-humano.ts`. Agora entram pelo `channel_knobs` (0499), com
++ * DEFAULT = os valores de antes: quem nunca configurou tem regress├úo ZERO, e o
++ * leitor (`loadChannelKnobs`/`effectiveKnobs`) preenche os defaults.
++ */
++describe("atraso humano: default id├¬ntico ao c├│digo de antes (regress├úo zero)", () => {
++  it("os defaults do m├│dulo espelham os valores hist├│ricos", () => {
++    expect(PACING_DEFAULTS.atrasoNotarMs).toBe(ATRASO_NOTAR_MS); // 900
++    expect(PACING_DEFAULTS.msPorCaractere).toBe(MS_POR_CARACTERE); // 22
++    expect(PACING_DEFAULTS.atrasoMinimoMs).toBe(ATRASO_MINIMO_MS); // 1200
++    expect(PACING_DEFAULTS.atrasoMaximoMs).toBe(ATRASO_MAXIMO_MS); // 7500
++  });
++
++  it("sem knobs, calcularAtrasoHumano devolve exatamente o hist├│rico (piso e teto)", () => {
++    // O mesmo texto curto que o teste antigo prendia: cai no PISO.
++    expect(calcularAtrasoHumano("Oi, tudo bem?")).toBe(ATRASO_MINIMO_MS);
++    // Par├ígrafo longo cai no TETO.
++    expect(calcularAtrasoHumano("a".repeat(4000))).toBe(ATRASO_MAXIMO_MS);
++    // Vazio >= piso.
++    expect(calcularAtrasoHumano("")).toBe(ATRASO_MINIMO_MS);
++  });
++
++  it("atrasoHumanoEfetivo preenche todos os quatro com o default quando ausente", () => {
++    expect(atrasoHumanoEfetivo(undefined)).toEqual({
++      atrasoNotarMs: ATRASO_NOTAR_MS,
++      msPorCaractere: MS_POR_CARACTERE,
++      atrasoMinimoMs: ATRASO_MINIMO_MS,
++      atrasoMaximoMs: ATRASO_MAXIMO_MS,
++    });
++    // default parcial: o n├úo-informado cai no default.
++    expect(atrasoHumanoEfetivo({ msPorCaractere: 10 })).toMatchObject({ msPorCaractere: 10 });
++    expect(atrasoHumanoEfetivo({ msPorCaractere: 10 }).atrasoNotarMs).toBe(ATRASO_NOTAR_MS);
++  });
++});
++
++describe("atraso humano: knobs por conex├úo mudam o resultado", () => {
++  it("NOTAR maior empurra o atraso para cima (mesmo texto)", () => {
++    const texto = "Temos sim.";
++    const base = calcularAtrasoHumano(texto);
++    const comNotar = calcularAtrasoHumano(texto, { atrasoNotarMs: base + 500, atrasoMaximoMs: 10_000 });
++    expect(comNotar).toBeGreaterThan(base);
++  });
++
++  it("POR_CARACTERE maior pentencia em textos maiores", () => {
++    const curto = calcularAtrasoHumano("Oi", { msPorCaractere: 50, atrasoMaximoMs: 10_000 });
++    const longo = calcularAtrasoHumano("a".repeat(40), { msPorCaractere: 50, atrasoMaximoMs: 10_000 });
++    expect(longo).toBeGreaterThan(curto);
++  });
++
++  it("teto da conex├úo ├® respeitado (n├úo o default 7500)", () => {
++    // Texto que no default explodiria no teto de 7500; com teto menor, para nele.
++    // bruto = 900 + 22*400 = 9700 (> 7500 nos dois casos).
++    expect(calcularAtrasoHumano("a".repeat(400), { atrasoMaximoMs: 3000 })).toBe(3000);
++    expect(calcularAtrasoHumano("a".repeat(400))).toBe(ATRASO_MAXIMO_MS);
++  });
++
++  it("piso da conex├úo pode ser menor que o piso padr├úo sem afrouxar anti-ban", () => {
++    // "" s├│ ultrapassa o piso 1200 quando NOTAR > 1200; com NOTAR 50 o bruto
++    // (50) fica abaixo do piso 200 da conex├úo, que o leva para cima.
++    expect(
++      calcularAtrasoHumano("", { atrasoNotarMs: 50, atrasoMinimoMs: 200, atrasoMaximoMs: 5000 }),
++    ).toBe(200);
++    // Sem knobs, o "" recai no piso padr├úo 1200 (regress├úo zero).
++    expect(calcularAtrasoHumano("")).toBe(ATRASO_MINIMO_MS);
++  });
++});
++
++describe("leitor efetivo: linha de channel_knobs sobre os defaults", () => {
++  it("sem linha, effectiveKnobs devolve os defaults", () => {
++    const eff = effectiveKnobs(null);
++    expect(eff.atrasoNotarMs).toBe(PACING_DEFAULTS.atrasoNotarMs);
++    expect(eff.msPorCaractere).toBe(PACING_DEFAULTS.msPorCaractere);
++    expect(eff.atrasoMinimoMs).toBe(PACING_DEFAULTS.atrasoMinimoMs);
++    expect(eff.atrasoMaximoMs).toBe(PACING_DEFAULTS.atrasoMaximoMs);
++  });
++
++  it("com linha, effectiveKnobs devolve o valor da conex├úo (e null volta ao default)", () => {
++    const eff = effectiveKnobs(
++      {
++        atraso_notar_ms: 1200,
++        ms_por_caractere: null,
++        atraso_minimo_ms: 1500,
++        atraso_maximo_ms: 6000,
++      } as never,
++    );
++    expect(eff.atrasoNotarMs).toBe(1200);
++    expect(eff.msPorCaractere).toBe(PACING_DEFAULTS.msPorCaractere); // null -> default
++    expect(eff.atrasoMinimoMs).toBe(1500);
++    expect(eff.atrasoMaximoMs).toBe(6000);
++  });
++});
+\ No newline at end of file
+diff --git a/tests/unit/atraso-humano-nao-afrouxa-o-anti-ban.test.ts b/tests/unit/atraso-humano-nao-afrouxa-o-anti-ban.test.ts
+index 2b2cb4a7d..1a6afcdaf 100644
+--- a/tests/unit/atraso-humano-nao-afrouxa-o-anti-ban.test.ts
++++ b/tests/unit/atraso-humano-nao-afrouxa-o-anti-ban.test.ts
+@@ -162,10 +162,15 @@ describe("fia├º├úo ÔÇö a espera humana ├® paga UMA vez por turno", () => {
+     expect(doSendMessage).toBeGreaterThan(-1);
+     const i = FONTE_INBOUND.indexOf("send: (finalBody: string) =>", doSendMessage);
+     expect(i).toBeGreaterThan(-1);
+-    const janela = FONTE_INBOUND.slice(i, i + 1600);
++    const janela = FONTE_INBOUND.slice(i, i + 2400);
+     // Os dois convivem: o jitter ├® throttle anti-ban entre mensagens f├¡sicas, o
+     // atraso humano ├® a pausa do turno. Perder o primeiro ├® afrouxar o anti-ban.
+-    expect(janela).toMatch(/jitter\s*[:=]\s*\(\)\s*=>\s*1200 \+ Math\.floor\(Math\.random\(\) \* 800\)/);
++    // Desde a 0499 o jitter L├è os knobs da conex├úo (throttleMs + jitterMaxMs,
++    // defaults 1200/800) em vez do literal `1200 + rand*800` ÔÇö mesma prote├º├úo,
++    // agora configur├ível por n├║mero.
++    expect(janela).toMatch(/const jitter = \(\) =>/);
++    expect(janela).toMatch(/pacingDoTurno\?\.knobs\.throttleMs \?\? 1200/);
++    expect(janela).toMatch(/Math\.floor\(Math\.random\(\) \* \(pacingDoTurno\?\.knobs\.jitterMaxMs \?\? 800\)\)/);
+     expect(janela).toContain("sendInBubbles(texto, {");
+     // Issue #654: a pausa humana saiu daqui. Ela era paga no `antesDaPrimeira`, que
+     // rodava dentro do callback `send` ÔÇö isto ├®, com o `pg_advisory_xact_lock` do
+diff --git a/tests/unit/protecao-de-envio-abre-e-avisa.test.tsx b/tests/unit/protecao-de-envio-abre-e-avisa.test.tsx
+index 163c5b68e..fd36564e6 100644
+--- a/tests/unit/protecao-de-envio-abre-e-avisa.test.tsx
++++ b/tests/unit/protecao-de-envio-abre-e-avisa.test.tsx
+@@ -84,6 +84,10 @@ function canal(over: Partial<ChannelSession> = {}): ChannelSession {
+ const KNOBS: PacingKnobs = {
+   throttleMs: 1_200,
+   jitterMaxMs: 800,
++  atrasoNotarMs: 900,
++  msPorCaractere: 22,
++  atrasoMinimoMs: 1_200,
++  atrasoMaximoMs: 7_500,
+   windowStartHour: 7,
+   windowEndHour: 22,
+   respostaStartHour: 7,
+@@ -113,6 +117,8 @@ function itemDePacing(over: Partial<PacingKnobsItem> = {}): PacingKnobsItem {
+     defaults: KNOBS,
+     bounds: {
+       intervalMaxMs: 600_000,
++      msPorCaractereMax: 200,
++      atrasoMaximoMsMax: 60_000,
+       hourLastStart: 23,
+       hourEnd: 24,
+       daily_limit: { min: 1, max: 2_000 },
+diff --git a/tests/unit/protecao-de-envio-aceita-data-em-branco.test.ts b/tests/unit/protecao-de-envio-aceita-data-em-branco.test.ts
+index ebb04623a..016f7aa2d 100644
+--- a/tests/unit/protecao-de-envio-aceita-data-em-branco.test.ts
++++ b/tests/unit/protecao-de-envio-aceita-data-em-branco.test.ts
+@@ -319,6 +319,40 @@ describe("PUT /api/v1/ai/pacing ÔÇö janela de resposta (0495)", () => {
+   });
+ });
+ 
++describe("PUT /api/v1/ai/pacing ÔÇö atraso humano (0499): m├¡nimo acima do m├íximo ├® 422, n├úo 500", () => {
++  it("m├¡nimo sozinho acima do teto padr├úo (7500) ├® recusado, em vez de ignorado pelo clamp", async () => {
++    authOk();
++    const db = makeDb(null);
++    const { PUT } = await import("@/app/api/v1/ai/pacing/route");
++    const res = await PUT(put(corpoDaTela({ atraso_minimo_ms: 9000 })));
++
++    expect(res.status).toBe(422);
++    expect(db.upserts).toHaveLength(0);
++  });
++
++  it("m├¡nimo e m├íximo gravados invertidos s├úo recusados antes do CHECK do banco", async () => {
++    authOk();
++    const db = makeDb(null);
++    const { PUT } = await import("@/app/api/v1/ai/pacing/route");
++    const res = await PUT(put(corpoDaTela({ atraso_minimo_ms: 5000, atraso_maximo_ms: 3000 })));
++    const corpo = await res.json();
++
++    expect(res.status).toBe(422);
++    expect(corpo.error.message).toContain("5000");
++    expect(db.upserts).toHaveLength(0);
++  });
++
++  it("par coerente continua sendo gravado (a guarda n├úo virou bloqueio)", async () => {
++    authOk();
++    const db = makeDb(null);
++    const { PUT } = await import("@/app/api/v1/ai/pacing/route");
++    const res = await PUT(put(corpoDaTela({ atraso_minimo_ms: 3000, atraso_maximo_ms: 3000 })));
++
++    expect(res.status).toBe(200);
++    expect(db.knobs).toMatchObject({ atraso_minimo_ms: 3000, atraso_maximo_ms: 3000 });
++  });
++});
++
+ describe("A TELA e o texto que ela promete", () => {
+   it("o texto de ajuda n├úo promete rejuvenescer um n├║mero cuja data j├í est├í salva", () => {
+     const sheet = readFileSync(

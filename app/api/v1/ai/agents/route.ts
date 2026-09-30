@@ -49,7 +49,7 @@ const AGENT_COLUMNS_COM_VERSAO =
   "versoes:ai_agent_versions!ai_agent_versions_agent_id_fkey(id, version_number, status, provider, model)";
 
 const VERSION_COLUMNS =
-  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, cases_enabled, split_messages, split_max_chars, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
+  "id, organization_id, agent_id, version_number, system_prompt, provider, model, credential_id, tool_ids, trigger_config, channel_session_id, max_steps, token_budget, cost_budget_cents, history_message_window, history_token_window, handoff_keywords, handoff_tool_enabled, cases_enabled, split_messages, split_max_chars, inbound_debounce_ms, followup, operator_enabled, operator_model, operator_tool_ids, status, published_at, superseded_at, created_at, created_by,pipeline_ids,knowledge_source_ids,provisioning_origin";
 
 // ---------------------------------------------------------------------------
 // GET — list
@@ -181,6 +181,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         cases_enabled: v.cases_enabled,
         split_messages: v.split_messages,
         split_max_chars: v.split_max_chars,
+        inbound_debounce_ms: v.inbound_debounce_ms,
         followup: v.followup,
         // O corpo ACEITAVA estes quatro e o INSERT os descartava: criar um
         // agente pela API com papel Operador ligado, escopo de funil e acervo
