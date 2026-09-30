@@ -85,10 +85,17 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
       .eq("id", msg.id).eq("organization_id", msg.organization_id);
   };
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(new Error("derive_timeout")), 105 * 1000); // 1m45s teto
+
   try {
-    const dl = await admin.storage.from("whatsapp-media").download(msg.media_storage_path);
+    const dlPromise = admin.storage.from("whatsapp-media").download(msg.media_storage_path);
+    const timeoutPromise = new Promise<{ data: null, error: { message: string } }>((_, reject) => {
+      controller.signal.addEventListener('abort', () => reject(controller.signal.reason));
+    });
+    const dl = await Promise.race([dlPromise, timeoutPromise]);
     if (dl.error || !dl.data) throw new Error(`storage_download_failed: ${dl.error?.message ?? "no_data"}`);
-    const buffer = Buffer.from(await dl.data.arrayBuffer());
+    const buffer = Buffer.from(await (dl.data as Blob).arrayBuffer());
 
     // Credencial BYOK da org p/ visão (imagem).
     const llmCfg: LlmEdgeConfig = {
@@ -135,13 +142,8 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
     }
 
     // A transcrição é SEMPRE do Whisper (api.openai.com), então precisa de uma
-    // chave OpenAI — não da chave do provedor de chat da org. O comentário
-    // antigo já dizia isso ("senão exige credencial openai dedicada"), mas o
-    // código passava `llm.apiKey` direto: numa org com Anthropic, a chave da
-    // Anthropic era enviada para a OpenAI e voltava 401 em toda tentativa
-    // (visto nesta VPS: media.derive_requested preso com transcription_401,
-    // e o cliente ouvindo "não consigo ouvir áudio" com a chave certa no .env).
-    // 1. Tenta obter a chave específica do provedor ou da organização
+    // chave OpenAI — não da chave do provedor de chat da org.
+    // 1. Tenta obter a chave específica do provedor ou da organização (que agora engloba o fallback global)
     let openaiKey: string | null = null;
 
     if (llm.provider === "openai") {
@@ -157,12 +159,7 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
       }
     }
 
-    // 2. FALLBACK GLOBAL UNIVERSAL: Se a chave ainda for nula, usa obrigatoriamente a chave global do .env
-    if (!openaiKey) {
-      openaiKey = process.env.OPENAI_API_KEY || null;
-    }
-
-    const deps = buildDeriveDeps(llm, openaiKey, row.organization_id, admin);
+    const deps = buildDeriveDeps(llm, openaiKey, row.organization_id, admin, controller.signal);
 
     const text = await deriveMediaText(msg.type, buffer, msg.media_mime ?? "application/octet-stream", deps);
     await admin.from("messages")
@@ -171,11 +168,18 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
     return { consumer_key, status: "ok" };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
+    if (detail === "derive_timeout") {
+      logger.error("[media-derive] derive_timeout exceeded", { message_id: msg.id });
+      await markFailed();
+      return { consumer_key, status: "error", detail: "derive_timeout" };
+    }
     if (row.attempts >= DRAIN_MAX_ATTEMPTS - 1) {
       logger.error("[media-derive] failed permanently", { message_id: msg.id, detail });
       await markFailed();
     }
     return { consumer_key, status: "error", detail };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -213,6 +217,7 @@ function buildDeriveDeps(
   openaiKey: string | null,
   orgId: string,
   admin: ReturnType<typeof createAdminClient>,
+  signal: AbortSignal,
 ): DeriveDeps {
   const registry = createDefaultRegistry();
   // Thunk, não consulta: nada vai ao banco até a visão ser de fato perguntada,
@@ -279,6 +284,7 @@ function buildDeriveDeps(
     }
     const res = await generateText({
       model: factory(llm.apiKey, llm.defaultModel ?? ""),
+      abortSignal: signal,
       messages: [
         {
           role: "user",
@@ -296,7 +302,7 @@ function buildDeriveDeps(
   // (o derivado fica vazio e o marcador "[áudio]" continua valendo) e evita o
   // loop de 401 que retentava a cada drain.
   const transcriber: DeriveDeps["transcriber"] = openaiKey
-    ? apiTranscriptionProvider({ apiKey: openaiKey })
+    ? apiTranscriptionProvider({ apiKey: openaiKey, signal })
     : {
       transcribe: async () => {
         // Mesma razão da visão: devolver "" fazia o agente responder ao áudio

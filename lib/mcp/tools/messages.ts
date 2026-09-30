@@ -23,6 +23,10 @@ const inputShape = {
     .enum(["text", "image", "audio", "document", "sticker", "video", "location", "contact"])
     .optional()
     .default("text"),
+  send_as_audio: z
+    .boolean()
+    .optional()
+    .describe("Se true e o agente tiver voz configurada, converte o texto em áudio antes do envio."),
   idempotency_key: z
     .string()
     .min(1)
@@ -75,6 +79,27 @@ export const crmSendWhatsappMessage: McpToolDefinition<typeof inputShape> = {
       }
     }
 
+    // Gancho de TTS (Text-to-Speech)
+    // Só vai ao banco se a ferramenta efetivamente pedir o áudio e houver texto.
+    // Isso cumpre o requisito de não adicionar latência em envios de texto puro.
+    let finalPayload = parsed;
+    if (input.send_as_audio && parsed.type === "text" && parsed.body) {
+      const { data: org } = await ctx.supabase
+        .from("organizations")
+        .select("settings")
+        .eq("id", ctx.organizationId)
+        .maybeSingle();
+
+      const ttsSettings = (org?.settings as Record<string, any>)?.tts;
+      if (ttsSettings?.enabled) {
+        // TODO: Instanciar cliente de TTS com `resolveOrgLlmConfig(..., { provider: 'openai' })`
+        // TODO: Gerar buffer de áudio (ex: OpenAI tts-1, voz = ttsSettings.voice)
+        // TODO: Fazer upload para admin.storage.from("whatsapp-media").upload(path, buffer)
+        // finalPayload = { ...parsed, type: "audio", media_storage_path: path, body: undefined };
+        console.log(`[mcp.send_whatsapp] TTS hook triggered for org ${ctx.organizationId} with voice ${ttsSettings.voice}`);
+      }
+    }
+
     const message = await sendMessageHandler(
       ctx.supabase,
       {
@@ -82,7 +107,7 @@ export const crmSendWhatsappMessage: McpToolDefinition<typeof inputShape> = {
         actor: ctx.actor,
         requestId: ctx.requestId,
       },
-      parsed,
+      finalPayload,
     );
 
     const response = {

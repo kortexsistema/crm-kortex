@@ -12,6 +12,7 @@ export interface TranscriptionCreds {
   apiKey: string;
   model?: string;
   baseUrl?: string;
+  signal?: AbortSignal;
 }
 
 const DEFAULT_BASE = "https://api.openai.com";
@@ -46,6 +47,7 @@ export function apiTranscriptionProvider(
         method: "POST",
         headers: { Authorization: `Bearer ${creds.apiKey}` },
         body: form,
+        signal: creds.signal,
       });
       if (!res.ok) throw new Error(`transcription_${res.status}`);
       const json = (await res.json()) as { text?: string };
