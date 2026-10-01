@@ -11,6 +11,8 @@
  * docs/architecture/channel-adapter.md.
  */
 import type pg from 'pg';
+import { getWahaClient } from '@/lib/waha/client';
+import { resolveWahaChatId } from '@/lib/waha/send';
 
 import type {
   ChannelAdapter,
@@ -97,5 +99,44 @@ export class WahaChannelAdapter implements ChannelAdapter {
     // WAHA = custo flat de infra (0 por mensagem). A Cloud API cobra per-message
     // a partir de out/2026 — quando esse adapter existir, o preço é knob de config.
     return { perMessageUsdCents: 0, model: 'flat' };
+  }
+
+  async sinalizarDigitando(conversationId: string): Promise<void> {
+    try {
+      const { rows } = await this.db.query<{
+        session_name: string;
+        is_group: boolean;
+        group_chat_id: string | null;
+        phone_number: string | null;
+        wa_identity: string | null;
+        wa_lid: string | null;
+      }>(
+        `select s.session_name, c.is_group, c.group_chat_id, cont.phone_number, cont.wa_identity, cont.wa_lid
+         from conversations c
+         join channel_sessions s on c.channel_session_id = s.id
+         join contacts cont on c.contact_id = cont.id
+         where c.id = $1`,
+        [conversationId]
+      );
+      if (!rows[0]) return;
+      const row = rows[0];
+
+      const chatId = resolveWahaChatId({
+        isGroup: row.is_group,
+        groupChatId: row.group_chat_id,
+        phoneNumber: row.phone_number,
+        waIdentity: row.wa_identity,
+        waLid: row.wa_lid,
+      });
+
+      if (chatId) {
+        const client = getWahaClient();
+        if (client) {
+          await client.startTyping(row.session_name, chatId).catch(() => {});
+        }
+      }
+    } catch (err) {
+      // Ignora erro. O guardrail F2-14 define que typing é decoração.
+    }
   }
 }

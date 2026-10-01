@@ -111,4 +111,9 @@ export interface ChannelAdapter {
   capabilities(): ChannelCapabilities;
   /** custo por mensagem do canal. */
   costPerMessage(): ChannelCost;
+  /**
+   * Acende o indicador de "digitando..." no canal, se suportado.
+   * Não deve lançar erro se o canal não suportar ou estiver fora do ar.
+   */
+  sinalizarDigitando?(conversationId: string): Promise<void>;
 }

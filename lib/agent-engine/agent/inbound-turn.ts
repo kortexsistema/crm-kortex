@@ -2511,10 +2511,19 @@ async function executarTurnoDoAgente(
               return sendInBubbles(finalBody, {
                 enabled: agentConfig?.splitMessages ?? false,
                 maxChars: agentConfig?.splitMaxChars ?? 600,
-                sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
-                jitter: () =>
-                  (pacingDoTurno?.knobs.throttleMs ?? 1200) +
-                  Math.floor(Math.random() * (pacingDoTurno?.knobs.jitterMaxMs ?? 800)),
+                esperarBolha: async (bubble) => {
+                  await esperarComoHumano({
+                    texto: bubble,
+                    knobs: pacingDoTurno ? pacingDoTurno.knobs : knobsDeAtrasoHumano,
+                    sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
+                    log: runLog,
+                    sinalizarDigitando: async () => {
+                      if (liveChannel().sinalizarDigitando) {
+                        await liveChannel().sinalizarDigitando!(input.conversationId);
+                      }
+                    },
+                  });
+                },
                 send: (bubble): Promise<ChannelSendResult> => {
                   seq += 1;
                   return liveChannel().send({

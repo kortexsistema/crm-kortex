@@ -297,3 +297,4 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20260913075000` | `0238_supabase_integrations` | Tabelas de integração de consulta dinâmica do agente via banco Supabase externo |
 | `20260922120000` | `0240_saas_controls` | SaaS Controls (Subscription & AI Budget Limits) |
 | `20260915120000` | `0239_remove_source_from_agents` | Remover coluna source dos agentes |
+| `20260930210000` | `0241_agent_llm_pricing` | Dynamic pricing table for agent LLM calls (USD per 1M tokens), mapping models like DeepSeek, Llama. |

@@ -108,9 +108,7 @@ export interface SendInBubblesOpts<T extends BubbleOutcome = BubbleOutcome> {
   enabled: boolean;
   maxChars: number;
   send: (body: string) => Promise<T>;
-  sleep: (ms: number) => Promise<void>;
-  /** ms de jitter humano entre bolhas (só entre, não antes da 1ª). */
-  jitter: () => number;
+  esperarBolha: (bubble: string) => Promise<void>;
 }
 
 /**
@@ -134,7 +132,7 @@ export async function sendInBubbles<T extends BubbleOutcome>(
   if (bubbles.length === 0) return opts.send(body); // corpo vazio: deixa o canal decidir
   let last: T | undefined;
   for (let i = 0; i < bubbles.length; i++) {
-    if (i > 0) await opts.sleep(opts.jitter());
+    if (i > 0) await opts.esperarBolha(bubbles[i]!);
     last = await opts.send(bubbles[i]!);
     if (!OK_KINDS.has(last.kind)) return last; // veto/bloqueio/falha: para aqui
   }

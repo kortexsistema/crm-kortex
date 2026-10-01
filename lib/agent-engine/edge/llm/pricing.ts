@@ -12,22 +12,7 @@
  */
 
 /** USD por MILHÃO de tokens; match por prefixo longo primeiro (ex: 'gpt-4o-mini' antes de 'gpt-4o'). */
-const USD_PER_MTOK: Record<string, { input: number; output: number }> = {
-  // OpenAI
-  'gpt-5.6-terra': { input: 1.00, output: 2.00 },
-  'gpt-4o-mini': { input: 0.15, output: 0.60 },
-  'gpt-4o': { input: 2.50, output: 10.00 },
-
-  // Anthropic
-  'claude-haiku-4-5': { input: 0.25, output: 1.25 },
-  'claude-3-5-haiku': { input: 0.25, output: 1.25 },
-  'claude-3-5-sonnet': { input: 3.00, output: 15.00 },
-  'claude-3-opus': { input: 15.00, output: 75.00 },
-
-  // Google Gemini
-  'gemini-1.5-flash': { input: 0.075, output: 0.30 },
-  'gemini-1.5-pro': { input: 1.25, output: 5.00 },
-};
+import type { Queryable } from '../../queue/queue';
 
 export interface TokenUsage {
   inputTokens: number;
@@ -36,26 +21,54 @@ export interface TokenUsage {
   cacheWriteTokens: number;
 }
 
+/** Cache de preços por prefixo do modelo */
+let _agentPricingCache: Array<{ prefix: string; input: number; output: number }> | null = null;
+let _agentPricingFetchedAt = 0;
+const AGENT_PRICING_TTL_MS = 5 * 60 * 1000;
+
+async function loadAgentPricing(db: Queryable): Promise<Array<{ prefix: string; input: number; output: number }>> {
+  const now = Date.now();
+  if (_agentPricingCache && now - _agentPricingFetchedAt < AGENT_PRICING_TTL_MS) {
+    return _agentPricingCache;
+  }
+  
+  try {
+    const { rows } = await db.query<{ model_prefix: string; input_usd_per_mtok: number; output_usd_per_mtok: number }>(
+      `SELECT model_prefix, input_usd_per_mtok, output_usd_per_mtok FROM agent_llm_pricing`
+    );
+    
+    // Ordernar por tamanho do prefixo descendente garante que 'gpt-4o-mini' dê match antes de 'gpt-4o'
+    const cache = rows
+      .map(r => ({
+        prefix: r.model_prefix,
+        input: Number(r.input_usd_per_mtok),
+        output: Number(r.output_usd_per_mtok)
+      }))
+      .sort((a, b) => b.prefix.length - a.prefix.length);
+      
+    _agentPricingCache = cache;
+    _agentPricingFetchedAt = now;
+    return cache;
+  } catch (err) {
+    // Fallback: se falhar, retorna cache antigo ou array vazio sem lançar
+    return _agentPricingCache ?? [];
+  }
+}
+
 /**
  * Custo em CENTS (fracionário; coluna numeric) ou null se o modelo não tem preço
  * conhecido. `inputTokens` aqui é o TOTAL do usage do SDK — a parcela cacheada é
  * descontada e cobrada pela tarifa de cache.
  */
-export function costCents(model: string, usage: TokenUsage): number | null {
+export async function costCents(db: Queryable, model: string, usage: TokenUsage): Promise<number | null> {
   // Limpar prefixos de provedores (ex: openai/gpt-4o -> gpt-4o), espaços e maiúsculas
   const normalizedModel = model.trim().toLowerCase().split('/').pop() || '';
 
-  // Ordernar chaves por comprimento descendente garante que 'gpt-4o-mini' dê match antes de 'gpt-4o'
-  const priceKey = Object.keys(USD_PER_MTOK)
-    .sort((a, b) => b.length - a.length)
-    .find((prefix) => normalizedModel.startsWith(prefix));
+  const prices = await loadAgentPricing(db);
+  const p = prices.find((item) => normalizedModel.startsWith(item.prefix));
 
-  if (priceKey === undefined) {
+  if (!p) {
     return null;
-  }
-  const p = USD_PER_MTOK[priceKey];
-  if (p === undefined) {
-    return null; // inalcançável (key veio de Object.keys); satisfaz noUncheckedIndexedAccess
   }
 
   // Multiplicadores padrão de cache
