@@ -55,12 +55,14 @@ export class OpenAIAdapter implements AIAdapter {
   }
 
   async textToSpeech(text: string, voiceId: string = 'alloy'): Promise<ArrayBuffer> {
+    console.error(`[VOICE-TRACE-06] textToSpeech CALLED length=${text.length} voice=${voiceId} model=tts-1 format=ogg`);
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY is not defined in the environment.');
     }
     
     try {
+      console.error(`[VOICE-TRACE-07] OpenAI TTS request started`);
       const response = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: {
@@ -77,10 +79,12 @@ export class OpenAIAdapter implements AIAdapter {
 
       if (!response.ok) {
         const errorBody = await response.text().catch(() => '');
+        console.error(`[VOICE-TRACE-08] OpenAI TTS ERROR status=${response.status} msg=${errorBody.substring(0, 100)} type=HTTP_ERROR`);
         throw new Error(`OpenAI TTS Error (${response.status}): ${errorBody}`);
       }
 
       const arrayBuffer = await response.arrayBuffer();
+      console.error(`[VOICE-TRACE-08] OpenAI TTS success`);
       return arrayBuffer;
     } catch (error: unknown) {
       this.handleError(error);

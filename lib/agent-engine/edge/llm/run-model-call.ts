@@ -467,11 +467,12 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
   }
   const latencyMs = Date.now() - startedAt;
 
+  const rawUsage = result.usage as Record<string, any> | undefined;
   const usage = {
-    inputTokens: result.usage.inputTokens ?? 0,
-    outputTokens: result.usage.outputTokens ?? 0,
-    cacheReadTokens: result.usage.inputTokenDetails?.cacheReadTokens ?? 0,
-    cacheWriteTokens: result.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
+    inputTokens: rawUsage?.inputTokens ?? rawUsage?.promptTokens ?? 0,
+    outputTokens: rawUsage?.outputTokens ?? rawUsage?.completionTokens ?? 0,
+    cacheReadTokens: rawUsage?.inputTokenDetails?.cacheReadTokens ?? 0,
+    cacheWriteTokens: rawUsage?.inputTokenDetails?.cacheWriteTokens ?? 0,
   };
   const cost = await costCents(db, model, usage);
 

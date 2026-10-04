@@ -214,12 +214,12 @@ export function buildModel(provider: string, apiKey: string, modelId: string): L
   }
 }
 
-function totalUsage(steps: ReadonlyArray<{ usage?: { inputTokens?: number; outputTokens?: number } }>) {
+function totalUsage(steps: ReadonlyArray<{ usage?: Record<string, any> }>) {
   let inputTokens = 0;
   let outputTokens = 0;
   for (const s of steps) {
-    inputTokens += s.usage?.inputTokens ?? 0;
-    outputTokens += s.usage?.outputTokens ?? 0;
+    inputTokens += s.usage?.inputTokens ?? s.usage?.promptTokens ?? 0;
+    outputTokens += s.usage?.outputTokens ?? s.usage?.completionTokens ?? 0;
   }
   return { inputTokens, outputTokens };
 }

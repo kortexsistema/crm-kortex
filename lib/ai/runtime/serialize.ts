@@ -68,8 +68,8 @@ export function serializeSteps(steps: ReadonlyArray<MinimalStep>): SerializedSte
       text: step.text && step.text.length > 0 ? step.text.slice(0, 4000) : undefined,
       finish_reason:
         typeof step.finishReason === "string" ? step.finishReason : undefined,
-      tokens_in: step.usage?.inputTokens,
-      tokens_out: step.usage?.outputTokens,
+      tokens_in: (step.usage as any)?.inputTokens ?? (step.usage as any)?.promptTokens,
+      tokens_out: (step.usage as any)?.outputTokens ?? (step.usage as any)?.completionTokens,
       tool_calls: toolEntries,
     };
   });

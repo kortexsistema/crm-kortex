@@ -584,6 +584,10 @@ export class WahaClient {
     plan: { endpoint: string; payload: Record<string, unknown> },
   ): Promise<unknown> {
     const safeSession = sanitizeWahaSessionName(session);
+    console.error(`[VOICE-TRACE-13] WAHA send type = ${plan.endpoint}`);
+    if (plan.endpoint === 'sendVoice') {
+       console.error(`[VOICE-TRACE-14] WAHA sendVoice called session=${safeSession} type=voice mime=${(plan.payload.file as any)?.mimetype} url=${(plan.payload.file as any)?.url} convert=${plan.payload.convert}`);
+    }
     // Teto MAIOR aqui: `media-send.ts` manda `convert: true` em vídeo e áudio, e
     // o WAHA roda ffmpeg e baixa a URL do Storage antes de responder. Com o teto
     // de texto, o envio de áudio legítimo seria cortado — o conserto do timeout
@@ -594,8 +598,11 @@ export class WahaClient {
       body: JSON.stringify({ session: safeSession, chatId, ...plan.payload }),
     }, TETO_DE_MIDIA_MS);
     if (!res.ok) {
+      const errorBody = await res.text().catch(() => '');
+      console.error(`[VOICE-TRACE-15] WAHA ERROR status=${res.status} body=${errorBody.substring(0, 100)} endpoint=${plan.endpoint}`);
       throw new Error(`waha_${res.status}`);
     }
+    console.error(`[VOICE-TRACE-15] WAHA success endpoint=${plan.endpoint}`);
     return res.json();
   }
 

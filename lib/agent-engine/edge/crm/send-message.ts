@@ -141,20 +141,30 @@ export async function sendTurnMessage(
     let message: Message;
     let audioPath: string | undefined;
 
+    console.error(`[VOICE-TRACE-01] organization_id=${input.tenantId} conversation_id=${input.conversationId} message="${input.body.substring(0, 50)}" tool=send_message audio_response_param=${input.audio_response}`);
+    console.error(`[VOICE-TRACE-02] input.audio_response = ${input.audio_response}`);
+    console.error(`[VOICE-TRACE-03] tts_enabled = ${ttsEnabled}`);
+    console.error(`[VOICE-TRACE-04] OPENAI_API_KEY present = ${!!process.env.OPENAI_API_KEY}`);
+
     if (input.audio_response && ttsEnabled) {
+      console.error(`[VOICE-TRACE-05] TTS branch entered = true`);
       try {
         const adapter = new OpenAIAdapter();
         const audioBuffer = await adapter.textToSpeech(input.body, ttsVoice);
+        console.error(`[VOICE-TRACE-09] audio generated mime=audio/ogg format=ogg bytes=${audioBuffer.byteLength}`);
         const fileName = `${input.tenantId}/${input.conversationId}/${Date.now()}_tts.ogg`;
         const { error: uploadErr } = await cfg.supabase.storage
           .from('whatsapp-media')
           .upload(fileName, audioBuffer, { contentType: 'audio/ogg', upsert: true });
         if (!uploadErr) {
           audioPath = fileName;
+          console.error(`[VOICE-TRACE-10] audio uploaded bucket=whatsapp-media path=${audioPath} result=success`);
         } else {
+          console.error(`[VOICE-TRACE-10] audio uploaded bucket=whatsapp-media path=${fileName} result=error (${uploadErr.message})`);
           console.error('[sendTurnMessage] falha ao fazer upload do audio TTS:', uploadErr.message);
         }
       } catch (err) {
+        console.error(`[VOICE-TRACE-FATAL] falha ao gerar audio TTS (${err instanceof Error ? err.message : String(err)})`);
         console.error('[sendTurnMessage] falha ao gerar audio TTS:', err instanceof Error ? err.message : String(err));
       }
     }

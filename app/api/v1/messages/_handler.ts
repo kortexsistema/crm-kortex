@@ -535,6 +535,8 @@ export async function sendMessageHandler(
     },
   };
 
+  console.error(`[VOICE-TRACE-11] message persisted as ${input.type === 'audio' ? 'audio' : 'text'} (type=${input.type} media_storage_path=${input.media_storage_path})`);
+
   let { data: created, error: insErr } = await supabase
     .from("messages")
     .insert(insertRow)
@@ -735,6 +737,7 @@ export async function sendMessageHandler(
         }
         const filename = input.media_storage_path.split("/").pop() ?? undefined;
         await checkBoundary();
+        console.error(`[VOICE-TRACE-12] outbound message type = ${input.type}`);
         ({ externalId } = await adapter.send({
           beforeSend: checkBoundary,
           organizationId: ctx.organization_id,
