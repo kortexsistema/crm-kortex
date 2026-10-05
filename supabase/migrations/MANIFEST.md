@@ -298,3 +298,4 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20260922120000` | `0240_saas_controls` | SaaS Controls (Subscription & AI Budget Limits) |
 | `20260915120000` | `0239_remove_source_from_agents` | Remover coluna source dos agentes |
 | `20260930210000` | `0241_agent_llm_pricing` | Dynamic pricing table for agent LLM calls (USD per 1M tokens), mapping models like DeepSeek, Llama. |
+- 20261005120000_0242_admin_usage_rollup_rpc.sql: Create RPCs for admin usage rollup to bypass max_rows limit

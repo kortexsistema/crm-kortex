@@ -112,92 +112,33 @@ export async function GET(req: NextRequest) {
 
   const orgIds = (orgs ?? []).map((o: { id: string }) => o.id);
 
-  // Compute start date
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-  const startIso = startDate.toISOString();
+  // Call the new RPCs to compute usage (bypasses max_rows limit)
+  const [tenantStatsRes, dailyStatsRes] = await Promise.all([
+    admin.rpc("fn_admin_usage_tenant_aggregates", { p_days: days, p_tenant_id: tenant_id ?? null }),
+    admin.rpc("fn_admin_usage_daily_series", { p_days: days, p_tenant_id: tenant_id ?? null })
+  ]);
 
-  // ---- messages count per org ----
-  const messagesCountMap = new Map<string, number>();
-  if (orgIds.length > 0) {
-    const { data: msgRows, error: msgErr } = await admin
-      .from("messages")
-      .select("organization_id")
-      .in("organization_id", orgIds)
-      .gte("created_at", startIso);
-    if (!msgErr && msgRows) {
-      for (const row of msgRows) {
-        const oid = row.organization_id as string;
-        messagesCountMap.set(oid, (messagesCountMap.get(oid) ?? 0) + 1);
-      }
-    }
+  if (tenantStatsRes.error) {
+    return fail("db_error", "Failed to compute tenant aggregates", 500, { requestId, details: tenantStatsRes.error });
   }
 
-  // ---- conversations count per org ----
-  const convsCountMap = new Map<string, number>();
-  if (orgIds.length > 0) {
-    const { data: convRows, error: convErr } = await admin
-      .from("conversations")
-      .select("organization_id")
-      .in("organization_id", orgIds)
-      .gte("created_at", startIso);
-    if (!convErr && convRows) {
-      for (const row of convRows) {
-        const oid = row.organization_id as string;
-        convsCountMap.set(oid, (convsCountMap.get(oid) ?? 0) + 1);
-      }
-    }
-  }
-
-  // ---- consumo de IA por org: `llm_calls`, a tabela única (migration 0130) ----
-  //
-  // Lia `ai_invocations`, e a 0130 deixou essa tabela SEM NENHUM ESCRITOR:
-  // `lib/ai/log-invocation.ts` passou a gravar em `llm_calls`. O painel de
-  // plataforma continuaria somando o histórico congelado e, passados os 30 dias
-  // da janela, mostraria ZERO consumo para todo tenant com o dinheiro saindo —
-  // exatamente o sintoma que a 0130 existe para matar, reintroduzido na tela do
-  // outro lado. `tests/unit/telemetria-tem-um-leitor-so.test.ts` guarda isto.
-  const aiInvCountMap = new Map<string, number>();
-  const aiTokensMap = new Map<string, number>();
-  const aiCostMap = new Map<string, number>();
-
-  if (orgIds.length > 0) {
-    const { data: aiRows, error: aiErr } = await admin
-      .from("llm_calls")
-      .select("organization_id, input_tokens, output_tokens, cost_cents")
-      .in("organization_id", orgIds)
-      .gte("created_at", startIso);
-    if (!aiErr && aiRows) {
-      for (const row of aiRows) {
-        const oid = row.organization_id as string;
-        aiInvCountMap.set(oid, (aiInvCountMap.get(oid) ?? 0) + 1);
-        aiTokensMap.set(
-          oid,
-          (aiTokensMap.get(oid) ?? 0) +
-            ((row.input_tokens as number) ?? 0) +
-            ((row.output_tokens as number) ?? 0),
-        );
-        aiCostMap.set(
-          oid,
-          (aiCostMap.get(oid) ?? 0) + ((row.cost_cents as number) ?? 0),
-        );
-      }
-    }
+  if (dailyStatsRes.error) {
+    return fail("db_error", "Failed to compute daily series", 500, { requestId, details: dailyStatsRes.error });
   }
 
   // Build tenant rows
-  const tenants: UsageTenantRow[] = (orgs ?? [])
-    .map((org: { id: string }) => {
-      const meta = orgMap.get(org.id) ?? { display_name: org.id, slug: "" };
+  const tenants: UsageTenantRow[] = (tenantStatsRes.data ?? [])
+    .map((row: any) => {
+      const meta = orgMap.get(row.organization_id) ?? { display_name: row.organization_id, slug: "" };
       return {
-        organization_id: org.id,
+        organization_id: row.organization_id,
         tenant_name: meta.display_name,
         tenant_slug: meta.slug,
-        messages_count: messagesCountMap.get(org.id) ?? 0,
-        ai_invocations_count: aiInvCountMap.get(org.id) ?? 0,
-        ai_tokens_total: aiTokensMap.get(org.id) ?? 0,
-        ai_cost_cents: aiCostMap.get(org.id) ?? 0,
-        conversations_count: convsCountMap.get(org.id) ?? 0,
+        messages_count: Number(row.messages_count ?? 0),
+        ai_invocations_count: Number(row.ai_invocations_count ?? 0),
+        ai_tokens_total: Number(row.ai_tokens_total ?? 0),
+        ai_cost_cents: Number(row.ai_cost_cents ?? 0),
+        conversations_count: Number(row.conversations_count ?? 0),
       };
     })
     .sort(
@@ -210,71 +151,19 @@ export async function GET(req: NextRequest) {
   // Daily series
   // -------------------------------------------------------------------------
 
-  // Build date labels for last N days
-  const dateLabels: string[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    dateLabels.push(d.toISOString().slice(0, 10));
-  }
-
-  // messages per day
-  const msgDayMap = new Map<string, number>();
-  if (orgIds.length > 0) {
-    const filterOrgIds = tenant_id ? [tenant_id] : orgIds;
-    const { data: msgDays, error: msgDayErr } = await admin
-      .from("messages")
-      .select("created_at")
-      .in("organization_id", filterOrgIds)
-      .gte("created_at", startIso);
-    if (!msgDayErr && msgDays) {
-      for (const row of msgDays) {
-        const day = (row.created_at as string).slice(0, 10);
-        msgDayMap.set(day, (msgDayMap.get(day) ?? 0) + 1);
-      }
-    }
-  }
-
-  // ai cost + tokens per day
-  const aiCostDayMap = new Map<string, number>();
-  const aiTokensDayMap = new Map<string, number>();
-  if (orgIds.length > 0) {
-    const filterOrgIds = tenant_id ? [tenant_id] : orgIds;
-    // `llm_calls`, pelo mesmo motivo do bloco acima (migration 0130).
-    const { data: aiDays, error: aiDayErr } = await admin
-      .from("llm_calls")
-      .select("created_at, input_tokens, output_tokens, cost_cents")
-      .in("organization_id", filterOrgIds)
-      .gte("created_at", startIso);
-    if (!aiDayErr && aiDays) {
-      for (const row of aiDays) {
-        const day = (row.created_at as string).slice(0, 10);
-        aiCostDayMap.set(
-          day,
-          (aiCostDayMap.get(day) ?? 0) + ((row.cost_cents as number) ?? 0),
-        );
-        aiTokensDayMap.set(
-          day,
-          (aiTokensDayMap.get(day) ?? 0) +
-            ((row.input_tokens as number) ?? 0) +
-            ((row.output_tokens as number) ?? 0),
-        );
-      }
-    }
-  }
-
+  // The RPC returns a sorted array of all days in the requested window
   const series: UsageSeries = {
-    messages: dateLabels.map((date) => ({
-      date,
-      count: msgDayMap.get(date) ?? 0,
+    messages: (dailyStatsRes.data ?? []).map((row: any) => ({
+      date: row.date_label,
+      count: Number(row.messages_count ?? 0),
     })),
-    ai_cost: dateLabels.map((date) => ({
-      date,
-      cents: aiCostDayMap.get(date) ?? 0,
+    ai_cost: (dailyStatsRes.data ?? []).map((row: any) => ({
+      date: row.date_label,
+      cents: Number(row.ai_cost_cents ?? 0),
     })),
-    ai_tokens: dateLabels.map((date) => ({
-      date,
-      tokens: aiTokensDayMap.get(date) ?? 0,
+    ai_tokens: (dailyStatsRes.data ?? []).map((row: any) => ({
+      date: row.date_label,
+      tokens: Number(row.ai_tokens_total ?? 0),
     })),
   };
 
