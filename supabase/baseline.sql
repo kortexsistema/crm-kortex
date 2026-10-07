@@ -23726,3 +23726,36 @@ REVOKE EXECUTE ON FUNCTION fn_admin_usage_daily_series(int, uuid) FROM public, a
 GRANT EXECUTE ON FUNCTION fn_admin_usage_tenant_aggregates(int, uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION fn_admin_usage_daily_series(int, uuid) TO service_role;
 
+
+-- 20261007190000_0243_supabase_integration_tables_status_mapping.sql
+ALTER TABLE "public"."supabase_integration_tables"
+ADD COLUMN IF NOT EXISTS "status_mapping" jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+-- 20261007200000_0244_seed_appointment_reminder_skill.sql
+DO $$
+DECLARE
+  v_id uuid;
+BEGIN
+  INSERT INTO skill_versions (organization_id, name, description, body, matcher, manifest, created_at)
+  VALUES (
+    NULL,
+    'appointment_reminder',
+    'Lida com intenções de confirmação ou reagendamento de um compromisso.',
+    '## Lembretes de Compromisso pendentes
+Se o lead responder confirmando o compromisso ou pedindo para reagendar, use a ferramenta "update_appointment_status" para atualizar o sistema de acordo. Nunca prometa confirmação sem chamar a ferramenta.
+Se o lead pedir para reagendar, altere o status para "remarcar" e peça qual o melhor horário.',
+    '{"any_keywords": ["confirmado", "confirmo", "sim", "reagendar", "remarcar", "pode ser", "ok", "outro horario", "não poderei"], "probe_keywords": []}',
+    '[]',
+    now()
+  )
+  RETURNING id INTO v_id;
+
+  INSERT INTO skill_pointers (organization_id, name, version_id, updated_at)
+  VALUES (NULL, 'appointment_reminder', v_id, now())
+  ON CONFLICT (name) WHERE organization_id IS NULL 
+  DO UPDATE SET version_id = EXCLUDED.version_id, updated_at = now();
+END $$;
+
+-- 20261007193000_0245_calendar_appointments_whatsapp_status.sql
+ALTER TABLE "public"."calendar_appointments"
+ADD COLUMN IF NOT EXISTS "whatsapp_reminder_status" text NOT NULL DEFAULT 'pendente';

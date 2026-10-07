@@ -3,6 +3,7 @@ import { DEFAULT_CHANNEL_PROVIDER } from '@/lib/channels/capabilities';
 import { applyPreviewPolicy, previewGateContext, type TurnPreview } from './preview';
 import { claimOfJob } from '../queue/claim';
 import { currentExecutionBoundary, guardServiceEffect } from '@/lib/atendimento/fronteira-server';
+import { createAppointmentReminderTool } from '../skills/appointment-reminder';
 /**
  * Loop do agente v0 — handler do job `inbound_turn` (F2-09; blueprint 8.8).
  *
@@ -3086,6 +3087,11 @@ async function executarTurnoDoAgente(
         }
       },
     });
+  }
+
+  // Inject conditional skill tools
+  if (skills.some(s => s.name === 'appointment_reminder')) {
+    rawTools.update_appointment_status = createAppointmentReminderTool(pool);
   }
 
   // A tool de conhecimento só entra quando o agente publicado tem material para

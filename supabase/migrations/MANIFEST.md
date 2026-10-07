@@ -299,3 +299,9 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20260915120000` | `0239_remove_source_from_agents` | Remover coluna source dos agentes |
 | `20260930210000` | `0241_agent_llm_pricing` | Dynamic pricing table for agent LLM calls (USD per 1M tokens), mapping models like DeepSeek, Llama. |
 - 20261005120000_0242_admin_usage_rollup_rpc.sql: Create RPCs for admin usage rollup to bypass max_rows limit
+
+| `20261007190000` | `0243_supabase_integration_tables_status_mapping` | Adiciona status_mapping jsonb à tabela supabase_integration_tables para regras de atualização externa. |
+
+| `20261007200000` | `0244_seed_appointment_reminder_skill` | Injeta a skill condicional para lembrete de compromisso. |
+
+| `20261007193000` | `0245_calendar_appointments_whatsapp_status` | Adiciona coluna whatsapp_reminder_status na tabela nativa calendar_appointments |

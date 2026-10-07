@@ -105,6 +105,58 @@ export async function buildDynamicSupabaseTools(
         }
       },
     });
+
+    // Se houver status_mapping e for uma tabela de compromissos, podemos criar a tool de atualização
+    if (t.status_mapping && Object.keys(t.status_mapping).length > 0) {
+      const updateToolName = `atualizar_status_${t.table_name}`;
+      const statusMap = t.status_mapping as Record<string, string>;
+      
+      const updateSchemaShape: Record<string, z.ZodTypeAny> = {
+        id: z.string().describe(`ID do registro na tabela ${t.table_name} para atualizar`),
+        novo_status: z.string().describe(`O novo status (ex: '${statusMap.confirmed_value}' para confirmar, '${statusMap.reschedule_value}' para remarcar)`),
+      };
+
+      result[updateToolName] = tool({
+        description: `Atualiza o status de um registro na tabela ${t.table_name} no banco de dados externo. Use após consultar o ID correto.`,
+        inputSchema: z.object(updateSchemaShape),
+        execute: async (args: unknown) => {
+          const startedAt = Date.now();
+          const argsRecord = (args ?? {}) as Record<string, string>;
+          const { id, novo_status } = argsRecord;
+
+          try {
+            const admin = createAdminClient();
+            const { data: decrypted, error: decErr } = await admin.rpc("fn_decrypt_oauth", {
+              ciphertext: integration.oauth_access_token_encrypted,
+            });
+            if (decErr || !decrypted) throw new Error("Falha ao descriptografar chave.");
+
+            const updateUrl = `${url.replace(/\/$/, "")}/rest/v1/${t.table_name}?id=eq.${id}`;
+            const response = await fetch(updateUrl, {
+              method: "PATCH",
+              headers: {
+                "apikey": decrypted,
+                "Authorization": `Bearer ${decrypted}`,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal"
+              },
+              body: JSON.stringify({
+                [statusMap.status_column || "status"]: novo_status
+              })
+            });
+            
+            if (!response.ok) throw new Error(`Erro na API externa: ${response.status}`);
+            
+            void auditMcpToolCall({ ctx, toolName: updateToolName, args: argsRecord, durationMs: Date.now() - startedAt, success: true });
+            return { data: { success: true, updated_id: id, status: novo_status } };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "unknown_error";
+            void auditMcpToolCall({ ctx, toolName: updateToolName, args: argsRecord, durationMs: Date.now() - startedAt, success: false, errorMessage: message });
+            return { error: message };
+          }
+        }
+      });
+    }
   }
 
   return result;
