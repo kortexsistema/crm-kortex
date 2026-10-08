@@ -20,19 +20,34 @@ export class UnifiedAppointmentProvider {
     const now = new Date();
     const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    // 1. Fetch Native Appointments
+    // 1. Fetch Organizations Settings first
+    const admin = createAdminClient();
+    const { data: orgs } = await admin.from("organizations").select("id, settings");
+    const orgSettings = new Map<string, any>();
+    
+    for (const org of orgs || []) {
+      const config = (org.settings as any)?.appointment_reminders || { enabled: false, hours_before: 24, custom_prompt: "" };
+      orgSettings.set(org.id, config);
+    }
+
+    // 2. Fetch Native Appointments
     const { rows: nativeRows } = await this.pool.query(`
       SELECT 
         a.id, a.organization_id, a.title, a.starts_at, a.whatsapp_reminder_status,
         c.name as contact_name, c.phone_number
       FROM calendar_appointments a
       LEFT JOIN contacts c ON a.contact_id = c.id
-      WHERE a.starts_at > $1 AND a.starts_at <= $2
-        AND a.whatsapp_reminder_status = 'pendente'
-    `, [now.toISOString(), in24h.toISOString()]);
+      WHERE a.whatsapp_reminder_status = 'pendente'
+    `);
 
     for (const r of nativeRows) {
       if (!r.phone_number) continue;
+      const config = orgSettings.get(r.organization_id);
+      if (!config || !config.enabled) continue;
+      
+      const inXh = new Date(now.getTime() + (config.hours_before || 24) * 60 * 60 * 1000);
+      if (r.starts_at <= now || r.starts_at > inXh) continue;
+
       appointments.push({
         id: r.id,
         organizationId: r.organization_id,
@@ -41,12 +56,12 @@ export class UnifiedAppointmentProvider {
         clientName: r.contact_name || 'Cliente',
         clientPhone: r.phone_number,
         startsAt: r.starts_at.toISOString(),
-        whatsappStatus: r.whatsapp_reminder_status
+        whatsappStatus: r.whatsapp_reminder_status,
+        customPrompt: config.custom_prompt
       });
     }
 
-    // 2. Fetch External Supabase Appointments
-    const admin = createAdminClient();
+    // 3. Fetch External Supabase Appointments
     const { data: mappings } = await admin
       .from("supabase_integration_tables")
       .select("*, integration:tenant_integrations(store_metadata, oauth_access_token_encrypted)")
@@ -70,8 +85,12 @@ export class UnifiedAppointmentProvider {
         });
         if (!decrypted) continue;
 
+        const config = orgSettings.get(organization_id);
+        if (!config || !config.enabled) continue;
+        const orgInXh = new Date(now.getTime() + (config.hours_before || 24) * 60 * 60 * 1000);
+
         const selectParam = encodeURIComponent(`${date_column},${status_column},${phone_column}${name_column ? ',' + name_column : ''},id`);
-        const filterDate = encodeURIComponent(`lt.${in24h.toISOString()}`);
+        const filterDate = encodeURIComponent(`lt.${orgInXh.toISOString()}`);
         const filterDateGte = encodeURIComponent(`gte.${now.toISOString()}`);
         const filterStatus = encodeURIComponent(`neq.${sent_value}`);
         
@@ -97,6 +116,7 @@ export class UnifiedAppointmentProvider {
             clientPhone: String(appt[phone_column]),
             startsAt: new Date(appt[date_column]).toISOString(),
             whatsappStatus: String(appt[status_column]),
+            customPrompt: config.custom_prompt,
             sourceTable: table_name
           });
         }

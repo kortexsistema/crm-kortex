@@ -37,12 +37,16 @@ async function handle(req: NextRequest): Promise<Response> {
 
     for (const appt of appointments) {
       try {
-        const systemPrompt = `Você é um assistente virtual gentil enviando um lembrete de compromisso.
+        let systemPrompt = `Você é um assistente virtual gentil enviando um lembrete de compromisso.
 Dados do compromisso:
 Nome: ${appt.clientName}
 Data: ${new Date(appt.startsAt).toLocaleString('pt-BR')}
 
 Redija uma mensagem curta (max 2 frases) confirmando o compromisso e perguntando se o cliente confirma presença ou se deseja reagendar.`;
+
+        if (appt.customPrompt) {
+          systemPrompt += `\n\nDiretrizes adicionais do usuário:\n${appt.customPrompt}`;
+        }
 
         // Generate personalized message using LLM
         const llmRes = await runModelCall(pool, {}, {

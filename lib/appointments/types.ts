@@ -7,6 +7,7 @@ export interface Appointment {
   clientPhone: string;
   startsAt: string; // ISO 8601
   whatsappStatus: string;
+  customPrompt?: string;
   
   // Metadados específicos da origem
   sourceTable?: string;

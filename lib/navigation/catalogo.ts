@@ -309,6 +309,16 @@ export const NAV_CATALOG = [
     sidebar: true,
   },
   {
+    href: "/app/ai/lembretes",
+    label: "Lembretes",
+    description: "Automação que avisa clientes sobre os seus compromissos e lê respostas.",
+    icon: "Bell",
+    group: "ia",
+    section: "Montar o agente",
+    minRole: "manager",
+    sidebar: true,
+  },
+  {
     href: "/app/ai/routers",
     label: "Roteadores",
     description: "Qual agente pega qual conversa, e quando o humano assume.",
