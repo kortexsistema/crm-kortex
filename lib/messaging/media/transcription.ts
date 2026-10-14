@@ -49,7 +49,10 @@ export function apiTranscriptionProvider(
         body: form,
         signal: creds.signal,
       });
-      if (!res.ok) throw new Error(`transcription_${res.status}`);
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`transcription_${res.status}: ${detail.slice(0, 200)}`);
+      }
       const json = (await res.json()) as { text?: string };
       return json.text ?? "";
     },

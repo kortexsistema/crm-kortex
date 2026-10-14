@@ -109,45 +109,43 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
       openrouterApiKey: process.env.OPENROUTER_API_KEY,
       cacheTtl: "1h",
     };
-    let llm = await resolveOrgLlmConfig(derivePool(), llmCfg, row.organization_id);
+    let llm: { provider: string; apiKey: string; defaultModel: string | null } | null = null;
+    try {
+      llm = await resolveOrgLlmConfig(derivePool(), llmCfg, row.organization_id);
+    } catch (err) {
+      logger.warn("[media-derive] falha ao resolver config de LLM padrão da org", {
+        organization_id: row.organization_id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     // ─── O painel de provedores manda AQUI também ────────────────────────────
-    //
-    // `visao_de_imagem` está no registro de pontos, sem `fixo`, e fora dos
-    // pontos governados pela versão publicada — ou seja, a tela o oferece como
-    // editável. Enquanto este worker resolvia só pela config da organização, o
-    // operador escolhia um modelo com visão, a tela dizia "salvo", a linha
-    // entrava em `ai_purpose_bindings` e a descrição de imagem seguia usando o
-    // modelo padrão. É textualmente a classe de defeito que
-    // `lib/ai/gateway-binding.ts` declara ter vindo matar — três pontos foram
-    // fechados e este ficou igual.
-    const bindingDaVisao = await lerBindingDoPonto(admin, row.organization_id, "visao_de_imagem");
-    if (bindingDaVisao) {
-      try {
-        const comBinding = await resolveOrgLlmConfig(derivePool(), llmCfg, row.organization_id, {
-          provider: bindingDaVisao.provider,
-          credentialId: bindingDaVisao.credential_id,
-        });
-        llm = { ...comBinding, defaultModel: bindingDaVisao.model_id };
-      } catch (err) {
-        // Binding apontando para provedor sem chave não pode derrubar a
-        // derivação inteira: cai no padrão da organização e AVISA, que é o
-        // desfecho que deixa rastro em vez de silêncio.
-        logger.warn("[media-derive] binding de visão sem credencial utilizável; usando o padrão da org", {
-          organization_id: row.organization_id,
-          provider: bindingDaVisao.provider,
-          error: err instanceof Error ? err.message : String(err),
-        });
+    if (llm) {
+      const bindingDaVisao = await lerBindingDoPonto(admin, row.organization_id, "visao_de_imagem");
+      if (bindingDaVisao) {
+        try {
+          const comBinding = await resolveOrgLlmConfig(derivePool(), llmCfg, row.organization_id, {
+            provider: bindingDaVisao.provider,
+            credentialId: bindingDaVisao.credential_id,
+          });
+          llm = { ...comBinding, defaultModel: bindingDaVisao.model_id };
+        } catch (err) {
+          logger.warn("[media-derive] binding de visão sem credencial utilizável; usando o padrão da org", {
+            organization_id: row.organization_id,
+            provider: bindingDaVisao.provider,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
 
     // A transcrição é SEMPRE do Whisper (api.openai.com), então precisa de uma
     // chave OpenAI — não da chave do provedor de chat da org.
-    // 1. Tenta obter a chave específica do provedor ou da organização (que agora engloba o fallback global)
+    // 1. Tenta obter a chave específica do provedor ou da organização
     let openaiKey: string | null = null;
 
-    if (llm.provider === "openai") {
-      openaiKey = llm.apiKey || null;
+    if (llm?.provider === "openai" && llm.apiKey) {
+      openaiKey = llm.apiKey;
     } else {
       try {
         const oa = await resolveOrgLlmConfig(derivePool(), llmCfg, row.organization_id, {
@@ -159,7 +157,13 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
       }
     }
 
-    const deps = buildDeriveDeps(llm, openaiKey, row.organization_id, admin, controller.signal);
+    // 2. FALLBACK GLOBAL UNIVERSAL: Se a chave ainda for nula, usa obrigatoriamente a chave global do .env
+    if (!openaiKey) {
+      openaiKey = process.env.OPENAI_API_KEY || null;
+    }
+
+    const defaultLlm = llm ?? { provider: "openai", apiKey: openaiKey ?? "", defaultModel: null };
+    const deps = buildDeriveDeps(defaultLlm, openaiKey, row.organization_id, admin, controller.signal);
 
     const text = await deriveMediaText(msg.type, buffer, msg.media_mime ?? "application/octet-stream", deps);
     await admin.from("messages")
