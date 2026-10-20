@@ -41,8 +41,13 @@ async function handle(req: NextRequest): Promise<Response> {
 Dados do compromisso:
 Nome: ${appt.clientName}
 Data: ${new Date(appt.startsAt).toLocaleString('pt-BR')}
+Título/Assunto: ${appt.title || 'Não especificado'}`;
 
-Redija uma mensagem curta (max 2 frases) confirmando o compromisso e perguntando se o cliente confirma presença ou se deseja reagendar.`;
+        if (appt.rawData) {
+          systemPrompt += `\nDados complementares da agenda externa (use para contextualizar, ex: perícia médica, especialidade, etc):\n${JSON.stringify(appt.rawData, null, 2)}`;
+        }
+
+        systemPrompt += `\n\nRedija uma mensagem curta (max 2 frases) confirmando o compromisso e perguntando se o cliente confirma presença ou se deseja reagendar.`;
 
         if (appt.customPrompt) {
           systemPrompt += `\n\nDiretrizes adicionais do usuário:\n${appt.customPrompt}`;

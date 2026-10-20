@@ -438,6 +438,7 @@ export async function publishAgentAction(
 
   revalidatePath(`/app/ai/agents/${agentId}`);
   revalidatePath("/app/ai/agents");
+  revalidatePath("/app/ai/knowledge/sources");
   return {
     ok: true,
     data: { version_id: result.version_id, previous_version_id: result.previous_version_id },

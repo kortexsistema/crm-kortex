@@ -58,7 +58,9 @@ export default async function AcervoPage() {
       // um tiro no escuro.
       supabase
         .from("ai_agents")
-        .select("id, name, published_version_id, ai_agent_versions!inner(id, knowledge_source_ids)")
+        .select(
+          "id, name, published_version_id, versao_publicada:ai_agent_versions!ai_agents_published_version_id_fkey(id, knowledge_source_ids)",
+        )
         .eq("organization_id", activeOrg.orgId)
         .is("archived_at", null),
       resolverChaveDeEmbedding(activeOrg.orgId),
@@ -76,16 +78,13 @@ export default async function AcervoPage() {
     id: string;
     name: string;
     published_version_id: string | null;
-    ai_agent_versions: Array<{ id: string; knowledge_source_ids: string[] | null }>;
+    versao_publicada: { id: string; knowledge_source_ids: string[] | null } | null;
   }>)
-    .map((a) => {
-      const publicada = a.ai_agent_versions.find((v) => v.id === a.published_version_id);
-      return {
-        id: a.id,
-        nome: a.name,
-        materiais: publicada?.knowledge_source_ids ?? [],
-      };
-    })
+    .map((a) => ({
+      id: a.id,
+      nome: a.name,
+      materiais: a.versao_publicada?.knowledge_source_ids ?? [],
+    }))
     .filter((a) => a.materiais.length > 0);
 
   const estadoDaChave: EstadoDaChave = {

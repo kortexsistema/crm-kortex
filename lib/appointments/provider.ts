@@ -89,7 +89,7 @@ export class UnifiedAppointmentProvider {
         if (!config || !config.enabled) continue;
         const orgInXh = new Date(now.getTime() + (config.hours_before || 24) * 60 * 60 * 1000);
 
-        const selectParam = encodeURIComponent(`${date_column},${status_column},${phone_column}${name_column ? ',' + name_column : ''},id`);
+        const selectParam = '*';
         const filterDate = encodeURIComponent(`lt.${orgInXh.toISOString()}`);
         const filterDateGte = encodeURIComponent(`gte.${now.toISOString()}`);
         const filterStatus = encodeURIComponent(`neq.${sent_value}`);
@@ -117,6 +117,7 @@ export class UnifiedAppointmentProvider {
             startsAt: new Date(appt[date_column]).toISOString(),
             whatsappStatus: String(appt[status_column]),
             customPrompt: config.custom_prompt,
+            rawData: appt,
             sourceTable: table_name
           });
         }
