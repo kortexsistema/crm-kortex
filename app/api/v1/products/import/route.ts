@@ -27,7 +27,7 @@ import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
 import { lerPlanilha, type ErroDaLinha } from "@/lib/catalogo/planilha";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { CSV_MAX_BYTES, CSV_MAX_DATA_ROWS, decodificarCsv } from "@/lib/contacts/csv";
-import { COLUNAS_DO_PRODUTO } from "@/lib/schemas/produtos";
+import { parseExcel } from "@/lib/sheets/excel";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -73,14 +73,19 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   const nome = arquivo.name ?? "";
-  const tipoOk =
-    nome.toLowerCase().endsWith(".csv") ||
+  const nomeMinusculo = nome.toLowerCase();
+  const isCsv =
+    nomeMinusculo.endsWith(".csv") ||
     arquivo.type === "text/csv" ||
     arquivo.type === "application/vnd.ms-excel";
-  if (!tipoOk) {
+  const isXlsx =
+    nomeMinusculo.endsWith(".xlsx") ||
+    arquivo.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+  if (!isCsv && !isXlsx) {
     return fail(
       "validation_failed",
-      t("Formato não suportado — envie um arquivo .csv. No Excel use 'Salvar como' → 'CSV UTF-8'."),
+      t("Formato não suportado — envie um arquivo .csv ou .xlsx."),
       422,
       { requestId },
     );
@@ -94,14 +99,30 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  // Os BYTES, não `arquivo.text()`: o Excel em pt-BR exporta cp1252 e
-  // `File.text()` decodifica sempre como UTF-8 — o nome entrava corrompido no
-  // catálogo sem um erro sequer, e é ele que o agente lê para o cliente (#483).
-  const decodificado = decodificarCsv(await arquivo.arrayBuffer());
-  if ("erro" in decodificado) {
-    return fail("validation_failed", t(decodificado.erro), 422, { requestId });
+  let dadosParaLer: string | string[][];
+  if (isXlsx) {
+    try {
+      dadosParaLer = await parseExcel(await arquivo.arrayBuffer());
+    } catch (err) {
+      return fail(
+        "validation_failed",
+        err instanceof Error ? err.message : t("Falha ao ler arquivo .xlsx."),
+        422,
+        { requestId },
+      );
+    }
+  } else {
+    // Os BYTES, não `arquivo.text()`: o Excel em pt-BR exporta cp1252 e
+    // `File.text()` decodifica sempre como UTF-8 — o nome entrava corrompido no
+    // catálogo sem um erro sequer, e é ele que o agente lê para o cliente (#483).
+    const decodificado = decodificarCsv(await arquivo.arrayBuffer());
+    if ("erro" in decodificado) {
+      return fail("validation_failed", t(decodificado.erro), 422, { requestId });
+    }
+    dadosParaLer = decodificado.texto;
   }
-  const lido = lerPlanilha(decodificado.texto, t);
+
+  const lido = lerPlanilha(dadosParaLer, t);
   // Problema do ARQUIVO (falta a coluna de preço) é 422 com a frase inteira —
   // e não um relatório com 300 erros idênticos.
   if ("erro" in lido) return fail("validation_failed", lido.erro, 422, { requestId });

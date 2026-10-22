@@ -61,12 +61,16 @@ export function decidePacing(input: PacingInput): PacingDecision {
 
   if (!insideWindow(wall, knobs)) {
     const nextAllowedAt = addMs(nextWindowOpen(now, knobs), jitterOf(rng, knobs));
+    const formatH = (h: number, m: number = 0) =>
+      m > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
+    const startStr = formatH(knobs.windowStartHour, knobs.windowStartMinute);
+    const endStr = formatH(knobs.windowEndHour, knobs.windowEndMinute);
     return {
       allow: false,
       code: 'outside_window',
       nextAllowedAt,
       reason:
-        `fora da janela de envio (${knobs.windowStartHour}h-${knobs.windowEndHour}h` +
+        `fora da janela de envio (${startStr}-${endStr}` +
         `${knobs.allowSunday ? '' : ', sem domingo'}, ${knobs.timezone}); ` +
         `agende para ${formatInTz(nextAllowedAt, knobs.timezone)} (abertura da janela + jitter)`,
     };
@@ -171,11 +175,18 @@ function wallClock(instant: Date, timezone: string): Wall {
 }
 
 /**
- * Instante UTC cuja hora de parede na tz é (y, mo, d, h):00 — técnica clássica
+ * Instante UTC cuja hora de parede na tz é (y, mo, d, h, mi) — técnica clássica
  * de duas passadas pelo offset (correta inclusive sob DST).
  */
-function instantFromWall(y: number, mo: number, d: number, h: number, timezone: string): Date {
-  const targetAsUtc = Date.UTC(y, mo - 1, d, h);
+function instantFromWall(
+  y: number,
+  mo: number,
+  d: number,
+  h: number,
+  timezone: string,
+  mi: number = 0,
+): Date {
+  const targetAsUtc = Date.UTC(y, mo - 1, d, h, mi);
   let guess = targetAsUtc;
   for (let i = 0; i < 2; i += 1) {
     const w = wallClock(new Date(guess), timezone);
@@ -188,7 +199,7 @@ function instantFromWall(y: number, mo: number, d: number, h: number, timezone: 
 /** Meia-noite LOCAL do tenant contendo `instant` — o corte do "hoje" dos caps diários. */
 export function dayStartInTz(instant: Date, timezone: string): Date {
   const w = wallClock(instant, timezone);
-  return instantFromWall(w.y, w.mo, w.d, 0, timezone);
+  return instantFromWall(w.y, w.mo, w.d, 0, timezone, 0);
 }
 
 /**
@@ -213,15 +224,26 @@ export function proximaAberturaDaJanela(
 
 function insideWindow(wall: Wall, knobs: PacingKnobs): boolean {
   if (!knobs.allowSunday && wall.weekday === 'Sun') return false;
-  return wall.h >= knobs.windowStartHour && wall.h < knobs.windowEndHour;
+  const currentMinutes = wall.h * 60 + wall.mi;
+  const startMinutes = knobs.windowStartHour * 60 + (knobs.windowStartMinute ?? 0);
+  const endMinutes = knobs.windowEndHour * 60 + (knobs.windowEndMinute ?? 0);
+  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
 }
 
 /** Próxima abertura de janela ESTRITAMENTE depois de `now` (pula domingo se evitado). */
 function nextWindowOpen(now: Date, knobs: PacingKnobs): Date {
   const w = wallClock(now, knobs.timezone);
+  const startMin = knobs.windowStartMinute ?? 0;
   for (let add = 0; ; add += 1) {
     // Date.UTC normaliza overflow de dia/mês em instantFromWall.
-    const candidate = instantFromWall(w.y, w.mo, w.d + add, knobs.windowStartHour, knobs.timezone);
+    const candidate = instantFromWall(
+      w.y,
+      w.mo,
+      w.d + add,
+      knobs.windowStartHour,
+      knobs.timezone,
+      startMin,
+    );
     if (candidate.getTime() <= now.getTime()) continue;
     if (!knobs.allowSunday && wallClock(candidate, knobs.timezone).weekday === 'Sun') continue;
     return candidate;
@@ -231,8 +253,16 @@ function nextWindowOpen(now: Date, knobs: PacingKnobs): Date {
 /** Abertura do PRÓXIMO dia permitido (cap diário reseta na meia-noite local). */
 function nextDayOpen(now: Date, knobs: PacingKnobs): Date {
   const w = wallClock(now, knobs.timezone);
+  const startMin = knobs.windowStartMinute ?? 0;
   for (let add = 1; ; add += 1) {
-    const candidate = instantFromWall(w.y, w.mo, w.d + add, knobs.windowStartHour, knobs.timezone);
+    const candidate = instantFromWall(
+      w.y,
+      w.mo,
+      w.d + add,
+      knobs.windowStartHour,
+      knobs.timezone,
+      startMin,
+    );
     if (!knobs.allowSunday && wallClock(candidate, knobs.timezone).weekday === 'Sun') continue;
     return candidate;
   }

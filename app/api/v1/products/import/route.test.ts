@@ -128,6 +128,32 @@ describe("POST /api/v1/products/import — reimportar não pisa a moeda de quem 
     expect(novo).toMatchObject({ moeda: "USD" });
     expect(existente).not.toHaveProperty("moeda");
   });
+
+  it("importa catálogo a partir de arquivo .xlsx com sucesso", async () => {
+    vi.mocked(createClient).mockResolvedValue(supabaseCom("BRL", []) as never);
+    const { POST } = await import("./route");
+
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Produtos");
+    ws.addRow(["codigo", "nome", "preco"]);
+    ws.addRow(["PROD-X", "Monitor 4K", "1.899,00"]);
+    const buf = await wb.xlsx.writeBuffer();
+    const arquivoXlsx = new File([buf], "catalogo.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const res = await POST(pedido(arquivoXlsx));
+
+    expect(res.status).toBe(200);
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0]![0]).toMatchObject({
+      codigo: "PROD-X",
+      nome: "Monitor 4K",
+      preco_cents: 189900,
+      moeda: "BRL",
+    });
+  });
 });
 
 // Este teste isola o handler; autoridade de suporte é exercitada na suíte própria.

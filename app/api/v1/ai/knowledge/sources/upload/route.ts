@@ -116,7 +116,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (!ext) {
     return fail(
       "unsupported_media_type",
-      t("Não sei ler esse tipo de arquivo. Envie PDF, Markdown (.md) ou texto (.txt)."),
+      t("Não sei ler esse tipo de arquivo. Envie PDF, Markdown (.md), texto (.txt) ou planilha (.csv, .xlsx)."),
       415,
       { requestId },
     );
@@ -130,14 +130,16 @@ export async function POST(req: NextRequest): Promise<Response> {
   // O MIME vai pela EXTENSÃO resolvida, não pelo que o browser mandou.
   //
   // O bucket tem allowlist de MIME (`application/pdf`, `text/markdown`,
-  // `text/x-markdown`, `text/plain`). Um `.md` arrastado de certos sistemas
-  // chega com `type` vazio, e `application/octet-stream` seria RECUSADO pelo
+  // `text/x-markdown`, `text/plain`, `text/csv`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`).
+  // Um `.md` arrastado de certos sistemas chega com `type` vazio, e `application/octet-stream` seria RECUSADO pelo
   // Storage — o upload falharia com uma mensagem que não tem nada a ver com o
   // que a pessoa fez.
   const MIME_POR_EXTENSAO = {
     pdf: "application/pdf",
     md: "text/markdown",
     txt: "text/plain",
+    csv: "text/csv",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   } as const;
 
   const { error: uploadErr } = await admin.storage

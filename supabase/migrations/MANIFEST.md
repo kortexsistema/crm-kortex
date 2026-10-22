@@ -305,3 +305,7 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20261007200000` | `0244_seed_appointment_reminder_skill` | Injeta a skill condicional para lembrete de compromisso. |
 
 | `20261007193000` | `0245_calendar_appointments_whatsapp_status` | Adiciona coluna whatsapp_reminder_status na tabela nativa calendar_appointments |
+
+| `20261021173000` | `0246_storage_ai_policy_spreadsheets` | Permite upload de planilhas (.csv, .xlsx) no bucket ai-policy |
+
+| `20261021233000` | `0247_channel_knobs_window_minutes` | Adiciona suporte a minutos (window_start_minute, window_end_minute) na janela de envio de channel_knobs |

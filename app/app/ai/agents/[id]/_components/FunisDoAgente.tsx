@@ -44,7 +44,8 @@ interface Props {
 
 export function FunisDoAgente({ funis, value, onChange, cobertura, disabled = false }: Props) {
   const t = useT();
-  const marcados = new Set(value);
+  const idsDisponiveis = new Set(funis.map((f) => f.id));
+  const marcados = new Set(value.filter((id) => idsDisponiveis.has(id)));
 
   function alternar(id: string, marcado: boolean): void {
     const proximo = new Set(marcados);
@@ -58,7 +59,7 @@ export function FunisDoAgente({ funis, value, onChange, cobertura, disabled = fa
   // onde o sistema cria um card por conversa nova (spec 17 passo 1). Se ele
   // ficar de fora, o assistente conversa e os cards se acumulam sem que ele
   // possa tocá-los.
-  const entradaDeFora = Boolean(funilDeEntrada && !marcados.has(funilDeEntrada.id) && value.length > 0);
+  const entradaDeFora = Boolean(funilDeEntrada && !marcados.has(funilDeEntrada.id) && marcados.size > 0);
 
   // Funis que o assistente cuida e não sabe percorrer: promessa que não se
   // cumpre. O dono marcou achando que ele ia organizar, e ele não vai.

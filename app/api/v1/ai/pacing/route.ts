@@ -28,7 +28,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const KNOB_COLUMNS =
-  "throttle_ms, jitter_max_ms, window_start_hour, window_end_hour, allow_sunday, timezone, warmup_daily_caps, number_activated_at";
+  "throttle_ms, jitter_max_ms, window_start_hour, window_end_hour, window_start_minute, window_end_minute, allow_sunday, timezone, warmup_daily_caps, number_activated_at";
 
 export async function GET(): Promise<Response> {
   const requestId = randomUUID();
@@ -145,6 +145,8 @@ export async function PUT(req: NextRequest): Promise<Response> {
       jitter_max_ms: null,
       window_start_hour: null,
       window_end_hour: null,
+      window_start_minute: null,
+      window_end_minute: null,
       allow_sunday: null,
       timezone: null,
       warmup_daily_caps: null,
@@ -152,10 +154,19 @@ export async function PUT(req: NextRequest): Promise<Response> {
     ...knobFields,
   };
   const eff = effectiveKnobs(merged);
-  if (!windowIsValid(eff.windowStartHour, eff.windowEndHour)) {
+  if (
+    !windowIsValid(
+      eff.windowStartHour,
+      eff.windowEndHour,
+      eff.windowStartMinute,
+      eff.windowEndMinute,
+    )
+  ) {
+    const fmt = (h: number, m: number = 0) =>
+      m > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
     return fail(
       "validation_failed",
-      `Janela inválida: início (${eff.windowStartHour}h) precisa ser antes do fim (${eff.windowEndHour}h).`,
+      `Janela inválida: início (${fmt(eff.windowStartHour, eff.windowStartMinute)}) precisa ser antes do fim (${fmt(eff.windowEndHour, eff.windowEndMinute)}).`,
       422,
       { requestId },
     );

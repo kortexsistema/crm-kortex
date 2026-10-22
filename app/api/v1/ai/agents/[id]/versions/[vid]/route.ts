@@ -14,6 +14,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { versionPatchSchema } from "@/lib/ai/agents/validation";
+import { validarEscopoDaVersao } from "@/lib/ai/agents/escopo";
 import { traduzir } from "@/lib/i18n/dicionario";
 
 export const dynamic = "force-dynamic";
@@ -123,6 +124,22 @@ export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
   if (patch.split_messages !== undefined) update.split_messages = patch.split_messages;
   if (patch.split_max_chars !== undefined) update.split_max_chars = patch.split_max_chars;
   if (patch.followup !== undefined) update.followup = patch.followup;
+  if (patch.operator_enabled !== undefined) update.operator_enabled = patch.operator_enabled;
+  if (patch.operator_model !== undefined) update.operator_model = patch.operator_model;
+  if (patch.operator_tool_ids !== undefined) update.operator_tool_ids = patch.operator_tool_ids;
+  if (patch.pipeline_ids !== undefined || patch.knowledge_source_ids !== undefined) {
+    const escopo = await validarEscopoDaVersao(admin, activeOrg.orgId, {
+      pipeline_ids: patch.pipeline_ids,
+      knowledge_source_ids: patch.knowledge_source_ids,
+    });
+    if (patch.pipeline_ids !== undefined) {
+      update.pipeline_ids = escopo.escopoSanitizado?.pipeline_ids ?? patch.pipeline_ids;
+    }
+    if (patch.knowledge_source_ids !== undefined) {
+      update.knowledge_source_ids =
+        escopo.escopoSanitizado?.knowledge_source_ids ?? patch.knowledge_source_ids;
+    }
+  }
 
   const { data, error } = await admin
     .from("ai_agent_versions")

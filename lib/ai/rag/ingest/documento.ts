@@ -21,12 +21,16 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { extractMarkdownText } from "@/lib/ai/rag/extractors/markdown";
 import { extractPdfText, PdfExtractError } from "@/lib/ai/rag/extractors/pdf";
+import {
+  extractSpreadsheetText,
+  SpreadsheetExtractError,
+} from "@/lib/ai/rag/extractors/spreadsheet";
 
 /** Bucket privado onde os arquivos de conhecimento vivem (nome histórico). */
 export const BUCKET_DE_CONHECIMENTO = "ai-policy";
 
 /** Extensões que o produto sabe ler hoje. */
-export const EXTENSOES_ACEITAS = ["pdf", "md", "txt"] as const;
+export const EXTENSOES_ACEITAS = ["pdf", "md", "txt", "csv", "xlsx"] as const;
 export type ExtensaoAceita = (typeof EXTENSOES_ACEITAS)[number];
 
 /**
@@ -50,6 +54,15 @@ export function resolverExtensao(
   if (mimeType === "application/pdf") return "pdf";
   if (mimeType === "text/markdown" || mimeType === "text/x-markdown") return "md";
   if (mimeType === "text/plain") return "txt";
+  if (mimeType === "text/csv") return "csv";
+  if (
+    mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  ) {
+    return "xlsx";
+  }
+  if (mimeType === "application/vnd.ms-excel") {
+    return ext === "xlsx" ? "xlsx" : "csv";
+  }
   return null;
 }
 
@@ -68,7 +81,7 @@ export async function extrairTextoDoArquivo(
   if (!extensao) {
     throw new ErroDeExtracao(
       `não sei ler arquivos "${extensaoDeclarada ?? blobPath.split(".").pop() ?? "?"}" — ` +
-        `envie PDF, Markdown ou texto`,
+        `envie PDF, Markdown, texto ou planilha (.csv, .xlsx)`,
     );
   }
 
@@ -96,6 +109,17 @@ export async function extrairTextoDoArquivo(
       }
       throw new ErroDeExtracao(
         `falhou ao ler o PDF: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  } else if (extensao === "csv" || extensao === "xlsx") {
+    try {
+      texto = await extractSpreadsheetText(buffer, extensao);
+    } catch (err) {
+      if (err instanceof SpreadsheetExtractError) {
+        throw new ErroDeExtracao(err.message);
+      }
+      throw new ErroDeExtracao(
+        `falhou ao ler a planilha: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   } else {

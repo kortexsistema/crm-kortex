@@ -34,8 +34,8 @@ interface Props {
 
 /** estado do form: strings cruas dos inputs ('' = usar padrão do motor). */
 interface FormState {
-  window_start_hour: string;
-  window_end_hour: string;
+  window_start_time: string;
+  window_end_time: string;
   throttle_s: string;
   jitter_s: string;
   daily_message_limit: string;
@@ -48,9 +48,19 @@ interface FormState {
 
 function fromItem(item: PacingKnobsItem): FormState {
   const o = item.overrides;
+  const startTime =
+    o?.window_start_hour != null
+      ? `${String(o.window_start_hour).padStart(2, "0")}:${String(o.window_start_minute ?? 0).padStart(2, "0")}`
+      : "";
+  const endTime =
+    o?.window_end_hour != null
+      ? o.window_end_hour === 24
+        ? "23:59"
+        : `${String(o.window_end_hour).padStart(2, "0")}:${String(o.window_end_minute ?? 0).padStart(2, "0")}`
+      : "";
   return {
-    window_start_hour: o?.window_start_hour != null ? String(o.window_start_hour) : "",
-    window_end_hour: o?.window_end_hour != null ? String(o.window_end_hour) : "",
+    window_start_time: startTime,
+    window_end_time: endTime,
     throttle_s: o?.throttle_ms != null ? String(o.throttle_ms / 1000) : "",
     jitter_s: o?.jitter_max_ms != null ? String(o.jitter_max_ms / 1000) : "",
     daily_message_limit:
@@ -66,9 +76,19 @@ function fromItem(item: PacingKnobsItem): FormState {
   };
 }
 
-const intOrNull = (s: string): number | null => (s.trim() === "" ? null : Math.round(Number(s)));
 const msOrNull = (s: string): number | null =>
   s.trim() === "" ? null : Math.round(Number(s) * 1000);
+
+function parseTimeString(val: string): { hour: number | null; minute: number | null } {
+  if (!val || val.trim() === "") return { hour: null, minute: null };
+  const parts = val.trim().split(":");
+  if (parts.length < 2) return { hour: null, minute: null };
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (isNaN(h) || isNaN(m)) return { hour: null, minute: null };
+  if (h === 23 && m === 59) return { hour: 24, minute: 0 };
+  return { hour: h, minute: m };
+}
 
 export function AntiBanSheet({ item, canWrite, onClose }: Props) {
   const t = useT();
@@ -91,12 +111,27 @@ export function AntiBanSheet({ item, canWrite, onClose }: Props) {
   const eff = item.effective;
   const set = (patch: Partial<FormState>) => setForm((f) => (f ? { ...f, ...patch } : f));
 
+  const effStartStr = `${String(eff.windowStartHour).padStart(2, "0")}:${String(eff.windowStartMinute ?? 0).padStart(2, "0")}`;
+  const effEndStr =
+    eff.windowEndHour === 24
+      ? "23:59"
+      : `${String(eff.windowEndHour).padStart(2, "0")}:${String(eff.windowEndMinute ?? 0).padStart(2, "0")}`;
+  const defaultStartStr = `${String(item.defaults.windowStartHour).padStart(2, "0")}:${String(item.defaults.windowStartMinute ?? 0).padStart(2, "0")}`;
+  const defaultEndStr =
+    item.defaults.windowEndHour === 24
+      ? "23:59"
+      : `${String(item.defaults.windowEndHour).padStart(2, "0")}:${String(item.defaults.windowEndMinute ?? 0).padStart(2, "0")}`;
+
   const handleSave = async () => {
+    const startParsed = parseTimeString(form.window_start_time);
+    const endParsed = parseTimeString(form.window_end_time);
     try {
       await update.mutateAsync({
         channel_session_id: item.channel_session.id,
-        window_start_hour: intOrNull(form.window_start_hour),
-        window_end_hour: intOrNull(form.window_end_hour),
+        window_start_hour: startParsed.hour,
+        window_start_minute: startParsed.minute,
+        window_end_hour: endParsed.hour,
+        window_end_minute: endParsed.minute,
         throttle_ms: msOrNull(form.throttle_s),
         jitter_max_ms: msOrNull(form.jitter_s),
         // `null` quando o Switch está no default: salvar esta ficha por outro
@@ -182,34 +217,44 @@ export function AntiBanSheet({ item, canWrite, onClose }: Props) {
 
           <fieldset className="flex flex-col gap-2">
             <Label>{t("Janela de envio (horário local)")}</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={0}
-                max={23}
-                inputMode="numeric"
-                placeholder={String(eff.windowStartHour)}
-                value={form.window_start_hour}
-                onChange={(e) => set({ window_start_hour: e.target.value })}
-                disabled={!canWrite}
-                aria-label={t("Hora de início da janela")}
-                className="w-20"
-              />
-              <span className="text-sm text-muted-foreground">{t("h até")}</span>
-              <Input
-                type="number"
-                min={1}
-                max={24}
-                inputMode="numeric"
-                placeholder={String(eff.windowEndHour)}
-                value={form.window_end_hour}
-                onChange={(e) => set({ window_end_hour: e.target.value })}
-                disabled={!canWrite}
-                aria-label={t("Hora de fim da janela")}
-                className="w-20"
-              />
-              <span className="text-sm text-muted-foreground">h</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="time"
+                  value={form.window_start_time}
+                  onChange={(e) => set({ window_start_time: e.target.value })}
+                  disabled={!canWrite}
+                  aria-label={t("Horário de início da janela")}
+                  className="w-32"
+                />
+                <span className="text-sm text-muted-foreground">{t("até")}</span>
+                <Input
+                  type="time"
+                  value={form.window_end_time}
+                  onChange={(e) => set({ window_end_time: e.target.value })}
+                  disabled={!canWrite}
+                  aria-label={t("Horário de término da janela")}
+                  className="w-32"
+                />
+              </div>
+              {(form.window_start_time !== "" || form.window_end_time !== "") && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => set({ window_start_time: "", window_end_time: "" })}
+                  disabled={!canWrite}
+                >
+                  {t("Restaurar padrão")}
+                </Button>
+              )}
             </div>
+            <p className="text-xs text-muted-foreground">
+              {form.window_start_time === "" && form.window_end_time === ""
+                ? `${t("Usando padrão do sistema:")} ${effStartStr} ${t("às")} ${effEndStr}.`
+                : `${t("Padrão do sistema:")} ${defaultStartStr} ${t("às")} ${defaultEndStr}.`}
+            </p>
             <p className="text-xs text-muted-foreground">
               {t(
                 "O assistente só envia mensagens dentro desta janela. Fora dela, a resposta fica agendada para a próxima abertura — você vê o motivo na conversa.",

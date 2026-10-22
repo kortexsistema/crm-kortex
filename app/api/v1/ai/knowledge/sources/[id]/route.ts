@@ -282,17 +282,20 @@ export async function DELETE(
 
   const admin = createAdminClient();
 
-  if (isPermanent) {
-    const { error: rpcErr } = await admin.rpc("remove_knowledge_source_from_agents", {
-      p_source_id: sourceId,
-      p_org_id: activeOrg.orgId,
-    });
+  // Limpa referências órfãs em rascunhos de agentes tanto no arquivamento quanto na exclusão definitiva.
+  const { error: rpcErr } = await admin.rpc("remove_knowledge_source_from_agents", {
+    p_source_id: sourceId,
+    p_org_id: activeOrg.orgId,
+  });
 
-    if (rpcErr) {
-      console.error("[ai-knowledge-sources] remove_knowledge_source_from_agents failed:", rpcErr.message);
+  if (rpcErr) {
+    console.error("[ai-knowledge-sources] remove_knowledge_source_from_agents failed:", rpcErr.message);
+    if (isPermanent) {
       return fail("internal_error", "Erro ao limpar referências do material.", 500, { requestId });
     }
+  }
 
+  if (isPermanent) {
     const { error: delErr } = await admin
       .from("ai_knowledge_sources")
       .delete()

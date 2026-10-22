@@ -196,10 +196,23 @@ function buildState(args: {
   agent?: AgentRow;
   version: AgentVersionRow | null;
   provedoresDaInstalacao?: string[];
+  materiais?: MaterialDoAcervo[];
+  funis?: FunilDaResposta[];
 }): FormState {
-  const { agent, version, provedoresDaInstalacao = [] } = args;
+  const { agent, version, provedoresDaInstalacao = [], materiais, funis } = args;
   const provider = (version?.provider as Provider) ?? "anthropic";
-  const temChaveInstalacao = provedoresDaInstalacao.includes(provider);
+
+  // Higienização defensiva: descarta referências a materiais e funis arquivados ou inexistentes
+  const rawKnowledgeIds = version?.knowledge_source_ids ?? [];
+  const knowledge_source_ids = materiais
+    ? rawKnowledgeIds.filter((id) => materiais.some((m) => m.id === id))
+    : rawKnowledgeIds;
+
+  const rawPipelineIds = version?.pipeline_ids ?? [];
+  const pipeline_ids = funis
+    ? rawPipelineIds.filter((id) => funis.some((f) => f.id === id))
+    : rawPipelineIds;
+
   return {
     name: agent?.name ?? "",
     description: agent?.description ?? "",
@@ -235,9 +248,9 @@ function buildState(args: {
     operator_model: version?.operator_model ?? "",
     operator_tool_ids: version?.operator_tool_ids ?? [],
     // `?? []` = nenhum funil. Agente novo nasce fechado, como o banco.
-    pipeline_ids: version?.pipeline_ids ?? [],
+    pipeline_ids,
     // `?? []` = nenhum material. Mesma direção segura: agir de menos.
-    knowledge_source_ids: version?.knowledge_source_ids ?? [],
+    knowledge_source_ids,
   };
 }
 
@@ -310,11 +323,15 @@ export function AgentForm(props: Props) {
         agent: props.agent,
         version: ref,
         provedoresDaInstalacao: props.provedoresDaInstalacao,
+        materiais: props.materiais,
+        funis: props.funis,
       });
     }
     return buildState({
       version: null,
       provedoresDaInstalacao: props.provedoresDaInstalacao,
+      materiais: props.materiais,
+      funis: props.funis,
     });
   }, [isEdit, props]);
 

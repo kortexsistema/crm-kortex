@@ -176,7 +176,7 @@ export function ProdutosClient({
             <input
               ref={arquivoRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
               data-testid="arquivo-planilha"
               onChange={(e) => {

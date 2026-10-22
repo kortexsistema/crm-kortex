@@ -15,6 +15,8 @@ interface ChannelKnobsRow {
   jitter_max_ms: number | null;
   window_start_hour: number | null;
   window_end_hour: number | null;
+  window_start_minute?: number | null;
+  window_end_minute?: number | null;
   allow_sunday: boolean | null;
   timezone: string | null;
   warmup_daily_caps: unknown; // jsonb — shape validado em parseWarmupCaps (nunca confiado)
@@ -65,6 +67,7 @@ export async function loadChannelKnobs(
 ): Promise<ChannelPacingConfig> {
   const { rows } = await db.query<ChannelKnobsRow>(
     `select throttle_ms, jitter_max_ms, window_start_hour, window_end_hour,
+            window_start_minute, window_end_minute,
             allow_sunday, timezone, warmup_daily_caps, number_activated_at,
             atraso_notar_ms, ms_por_caractere, atraso_minimo_ms, atraso_maximo_ms
      from channel_knobs
@@ -95,6 +98,8 @@ export async function loadChannelKnobs(
       jitterMaxMs: row.jitter_max_ms ?? PACING_DEFAULTS.jitterMaxMs,
       windowStartHour: row.window_start_hour ?? PACING_DEFAULTS.windowStartHour,
       windowEndHour: row.window_end_hour ?? PACING_DEFAULTS.windowEndHour,
+      windowStartMinute: row.window_start_minute ?? PACING_DEFAULTS.windowStartMinute,
+      windowEndMinute: row.window_end_minute ?? PACING_DEFAULTS.windowEndMinute,
       allowSunday: row.allow_sunday ?? PACING_DEFAULTS.allowSunday,
       timezone: row.timezone ?? PACING_DEFAULTS.timezone,
       warmupDailyCaps,

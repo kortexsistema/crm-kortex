@@ -113,6 +113,8 @@ export const pacingKnobsUpdateSchema = z
     jitter_max_ms: z.number().int().min(0).max(KNOB_BOUNDS.intervalMaxMs).nullable().optional(),
     window_start_hour: z.number().int().min(0).max(KNOB_BOUNDS.hourLastStart).nullable().optional(),
     window_end_hour: z.number().int().min(1).max(KNOB_BOUNDS.hourEnd).nullable().optional(),
+    window_start_minute: z.number().int().min(0).max(59).nullable().optional(),
+    window_end_minute: z.number().int().min(0).max(59).nullable().optional(),
     allow_sunday: z.boolean().nullable().optional(),
     timezone: z
       .string()
@@ -163,6 +165,8 @@ export interface ChannelKnobsRow {
   jitter_max_ms: number | null;
   window_start_hour: number | null;
   window_end_hour: number | null;
+  window_start_minute?: number | null;
+  window_end_minute?: number | null;
   allow_sunday: boolean | null;
   timezone: string | null;
   atraso_notar_ms?: number | null;
@@ -179,8 +183,13 @@ export interface ChannelKnobsRow {
  * engine faz. Valida o PAR RESULTANTE (row nova mesclada com a atual/default),
  * não só os campos enviados: PATCH parcial não pode criar janela invertida.
  */
-export function windowIsValid(startHour: number, endHour: number): boolean {
-  return startHour < endHour;
+export function windowIsValid(
+  startHour: number,
+  endHour: number,
+  startMinute: number = 0,
+  endMinute: number = 0,
+): boolean {
+  return startHour * 60 + startMinute < endHour * 60 + endMinute;
 }
 
 /** Knobs efetivos para exibição: linha (se houver) sobre os defaults do engine. */
@@ -190,6 +199,8 @@ export function effectiveKnobs(row: ChannelKnobsRow | null): PacingKnobs {
     jitterMaxMs: row?.jitter_max_ms ?? PACING_DEFAULTS.jitterMaxMs,
     windowStartHour: row?.window_start_hour ?? PACING_DEFAULTS.windowStartHour,
     windowEndHour: row?.window_end_hour ?? PACING_DEFAULTS.windowEndHour,
+    windowStartMinute: row?.window_start_minute ?? PACING_DEFAULTS.windowStartMinute,
+    windowEndMinute: row?.window_end_minute ?? PACING_DEFAULTS.windowEndMinute,
     allowSunday: row?.allow_sunday ?? PACING_DEFAULTS.allowSunday,
     timezone: row?.timezone ?? PACING_DEFAULTS.timezone,
     warmupDailyCaps: parseWarmupCaps(row?.warmup_daily_caps) ?? PACING_DEFAULTS.warmupDailyCaps,

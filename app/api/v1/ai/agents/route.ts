@@ -158,6 +158,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     if (!escopo.ok) {
       return fail("validation_failed", mensagemDoEscopo(escopo), 422, { requestId });
     }
+    if (escopo.escopoSanitizado) {
+      v.pipeline_ids = escopo.escopoSanitizado.pipeline_ids;
+      v.knowledge_source_ids = escopo.escopoSanitizado.knowledge_source_ids;
+    }
     const { data: versionRow, error: versionErr } = await admin
       .from("ai_agent_versions")
       .insert({

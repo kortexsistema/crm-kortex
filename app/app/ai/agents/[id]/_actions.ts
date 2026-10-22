@@ -169,6 +169,10 @@ export async function saveAgentDraftAction(
   if (!escopo.ok) {
     return { ok: false, error: "validation_failed", message: mensagemDoEscopo(escopo) };
   }
+  if (escopo.escopoSanitizado) {
+    v.pipeline_ids = escopo.escopoSanitizado.pipeline_ids;
+    v.knowledge_source_ids = escopo.escopoSanitizado.knowledge_source_ids;
+  }
 
   // Em QUAL rascunho esta escrita cai — pela MESMA régua que a tela usa para
   // decidir qual versão abrir (`escolherVersoesDaTela`, chamada em `page.tsx`).
@@ -221,7 +225,11 @@ export async function saveAgentDraftAction(
     if (!patchValidated.success) {
       return { ok: false, error: "validation_failed", details: patchValidated.error.flatten() };
     }
-    const update: Record<string, unknown> = { ...patchValidated.data };
+    const update: Record<string, unknown> = {
+      ...patchValidated.data,
+      pipeline_ids: v.pipeline_ids,
+      knowledge_source_ids: v.knowledge_source_ids,
+    };
     const { data: updated, error } = await admin
       .from("ai_agent_versions")
       .update(update)
@@ -568,8 +576,19 @@ export async function revertToVersionAction(
         // permissão dela seria publicar uma configuração que nunca existiu.
         // Vale igual para o acervo: reverter e o assistente esquecer o material
         // que aquela versão consultava é publicar uma configuração inventada.
-        pipeline_ids: src.pipeline_ids,
-        knowledge_source_ids: src.knowledge_source_ids ?? [],
+        // Higieniza defensivamente para caso materiais/funis antigos tenham sido arquivados.
+        pipeline_ids: (
+          await validarEscopoDaVersao(admin, activeOrg.orgId, {
+            pipeline_ids: src.pipeline_ids,
+            knowledge_source_ids: src.knowledge_source_ids ?? [],
+          })
+        ).escopoSanitizado?.pipeline_ids ?? src.pipeline_ids,
+        knowledge_source_ids: (
+          await validarEscopoDaVersao(admin, activeOrg.orgId, {
+            pipeline_ids: src.pipeline_ids,
+            knowledge_source_ids: src.knowledge_source_ids ?? [],
+          })
+        ).escopoSanitizado?.knowledge_source_ids ?? (src.knowledge_source_ids ?? []),
         split_messages: src.split_messages,
         split_max_chars: src.split_max_chars,
         status: "draft",
@@ -697,6 +716,15 @@ export async function createMcpAgentAction(
   }
 
   const v = parsed.data.version;
+  const escopo = await validarEscopoDaVersao(admin, activeOrg.orgId, {
+    pipeline_ids: v.pipeline_ids,
+    knowledge_source_ids: v.knowledge_source_ids,
+  });
+  if (escopo.escopoSanitizado) {
+    v.pipeline_ids = escopo.escopoSanitizado.pipeline_ids;
+    v.knowledge_source_ids = escopo.escopoSanitizado.knowledge_source_ids;
+  }
+
   const { error: versionErr } = await admin.from("ai_agent_versions").insert({
     organization_id: activeOrg.orgId,
     agent_id: agentRow.id,

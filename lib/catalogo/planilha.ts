@@ -76,11 +76,13 @@ export interface ResultadoDaLeitura {
 }
 
 export function lerPlanilha(
-  conteudo: string,
+  conteudo: string | string[][],
   t?: (text: string) => string,
 ): ResultadoDaLeitura | { erro: string } {
   const _t = t || ((x) => x);
-  const linhas = parseCsv(conteudo).filter((l) => l.some((c) => c.trim() !== ""));
+  const linhas = (typeof conteudo === "string" ? parseCsv(conteudo) : conteudo).filter((l) =>
+    l.some((c) => c.trim() !== ""),
+  );
   if (linhas.length === 0) return { erro: _t("A planilha está vazia.") };
 
   const cabecalho = linhas[0]!;

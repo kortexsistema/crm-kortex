@@ -143,6 +143,10 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     if (!escopo.ok) {
       return fail("validation_failed", mensagemDoEscopo(escopo), 422, { requestId });
     }
+    if (escopo.escopoSanitizado) {
+      v.pipeline_ids = escopo.escopoSanitizado.pipeline_ids;
+      v.knowledge_source_ids = escopo.escopoSanitizado.knowledge_source_ids;
+    }
 
     const nextNumber = (maxRow?.version_number ?? 0) + 1;
 

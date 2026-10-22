@@ -46,7 +46,8 @@ interface Props {
 
 export function BasesDoAgente({ materiais, value, onChange, disabled = false }: Props) {
   const t = useT();
-  const marcados = new Set(value);
+  const idsDisponiveis = new Set(materiais.map((m) => m.id));
+  const marcados = new Set(value.filter((id) => idsDisponiveis.has(id)));
 
   function alternar(id: string, marcado: boolean): void {
     const proximo = new Set(marcados);
@@ -58,7 +59,7 @@ export function BasesDoAgente({ materiais, value, onChange, disabled = false }: 
   const semPreparo = materiais.filter(
     (m) => marcados.has(m.id) && (m.chunks_count ?? 0) === 0,
   );
-  const acervoTodoDeFora = materiais.length > 0 && value.length === 0;
+  const acervoTodoDeFora = materiais.length > 0 && marcados.size === 0;
 
   return (
     <Card className="space-y-3 p-4">

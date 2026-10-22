@@ -4913,7 +4913,7 @@ values (
   'ai-policy',
   false,
   20971520,
-  array['application/pdf', 'text/markdown', 'text/x-markdown', 'text/plain']
+  array['application/pdf', 'text/markdown', 'text/x-markdown', 'text/plain', 'text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
 )
 on conflict (id) do nothing;
 
@@ -23802,3 +23802,32 @@ END $$;
 -- 20261007193000_0245_calendar_appointments_whatsapp_status.sql
 ALTER TABLE "public"."calendar_appointments"
 ADD COLUMN IF NOT EXISTS "whatsapp_reminder_status" text NOT NULL DEFAULT 'pendente';
+
+-- 20261021173000_0246_storage_ai_policy_spreadsheets.sql
+update storage.buckets
+set allowed_mime_types = array[
+  'application/pdf',
+  'text/markdown',
+  'text/x-markdown',
+  'text/plain',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel'
+]
+where id = 'ai-policy';
+
+-- 20261021233000_0247_channel_knobs_window_minutes.sql
+alter table public.channel_knobs
+  add column if not exists window_start_minute smallint default 0,
+  add column if not exists window_end_minute smallint default 0;
+
+alter table public.channel_knobs
+  drop constraint if exists channel_knobs_window_minutes_range;
+
+alter table public.channel_knobs
+  add constraint channel_knobs_window_minutes_range
+  check (
+    (window_start_minute is null or (window_start_minute >= 0 and window_start_minute <= 59))
+    and
+    (window_end_minute is null or (window_end_minute >= 0 and window_end_minute <= 59))
+  );

@@ -22,16 +22,32 @@ export interface EscopoDaVersao {
   knowledge_source_ids?: string[];
 }
 
+export interface EscopoSanitizado {
+  pipeline_ids: string[];
+  knowledge_source_ids: string[];
+}
+
 export type ResultadoDoEscopo =
-  | { ok: true }
-  | { ok: false; campo: "pipeline_ids" | "knowledge_source_ids"; ausentes: string[] };
+  | {
+      ok: true;
+      escopoSanitizado: EscopoSanitizado;
+      removidos: EscopoSanitizado;
+    }
+  | {
+      ok: false;
+      campo: "pipeline_ids" | "knowledge_source_ids";
+      ausentes: string[];
+      escopoSanitizado?: EscopoSanitizado;
+      removidos?: EscopoSanitizado;
+    };
 
 /**
- * Confere que todo id do escopo existe NESTA organização.
+ * Confere e higieniza os IDs do escopo para garantir que pertençam a esta organização
+ * e estejam ativos/não-arquivados.
  *
- * Recebe o client do CHAMADOR de propósito: com o client do usuário a RLS já
- * filtra por organização, e com o admin o filtro programático abaixo faz o mesmo
- * trabalho. Os dois caminhos chegam à mesma resposta.
+ * Tratamento defensivo: referências a materiais apagados/arquivados ou funis
+ * excluídos/arquivados são automaticamente removidas do array da versão, evitando
+ * que o salvamento seja bloqueado e eliminando referências fantasmas.
  */
 export async function validarEscopoDaVersao(
   supabase: SupabaseClient,
@@ -39,22 +55,28 @@ export async function validarEscopoDaVersao(
   escopo: EscopoDaVersao,
 ): Promise<ResultadoDoEscopo> {
   const funis = escopo.pipeline_ids ?? [];
+  let funisSanitizados = funis;
+  let funisRemovidos: string[] = [];
+
   if (funis.length > 0) {
     const { data } = await supabase
       .from("crm_pipelines")
       .select("id")
       .eq("organization_id", organizationId)
+      .eq("is_archived", false)
       .in("id", funis);
     const achados = new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id));
-    const ausentes = funis.filter((id) => !achados.has(id));
-    if (ausentes.length > 0) return { ok: false, campo: "pipeline_ids", ausentes };
+    funisSanitizados = funis.filter((id) => achados.has(id));
+    funisRemovidos = funis.filter((id) => !achados.has(id));
   }
 
   const materiais = escopo.knowledge_source_ids ?? [];
+  let materiaisSanitizados = materiais;
+  let materiaisRemovidos: string[] = [];
+
   if (materiais.length > 0) {
-    // `is_active` entra na conferência: marcar material ARQUIVADO é a mesma
-    // configuração muda de marcar um que não existe — o agente não acha nada
-    // nele, porque a busca filtra fonte inativa.
+    // `is_active` entra na conferência: marcar material arquivado ou inexistente
+    // é higienizado defensivamente para não quebrar a versão nem prender o operador.
     const { data } = await supabase
       .from("ai_knowledge_sources")
       .select("id")
@@ -62,16 +84,26 @@ export async function validarEscopoDaVersao(
       .eq("is_active", true)
       .in("id", materiais);
     const achados = new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id));
-    const ausentes = materiais.filter((id) => !achados.has(id));
-    if (ausentes.length > 0) return { ok: false, campo: "knowledge_source_ids", ausentes };
+    materiaisSanitizados = materiais.filter((id) => achados.has(id));
+    materiaisRemovidos = materiais.filter((id) => !achados.has(id));
   }
 
-  return { ok: true };
+  return {
+    ok: true,
+    escopoSanitizado: {
+      pipeline_ids: funisSanitizados,
+      knowledge_source_ids: materiaisSanitizados,
+    },
+    removidos: {
+      pipeline_ids: funisRemovidos,
+      knowledge_source_ids: materiaisRemovidos,
+    },
+  };
 }
 
 /** Frase para quem lê na tela — nunca o id cru sem contexto. */
-export function mensagemDoEscopo(r: Extract<ResultadoDoEscopo, { ok: false }>): string {
+export function mensagemDoEscopo(r: { campo?: string; ausentes?: string[] }): string {
   return r.campo === "pipeline_ids"
-    ? `Um dos funis marcados não existe mais nesta organização (${r.ausentes.length}). Recarregue a página e marque de novo.`
-    : `Um dos materiais marcados não existe mais, ou foi arquivado (${r.ausentes.length}). Recarregue a página e marque de novo.`;
+    ? `Um dos funis marcados não existe mais nesta organização (${r.ausentes?.length ?? 0}). Recarregue a página e marque de novo.`
+    : `Um dos materiais marcados não existe mais, ou foi arquivado (${r.ausentes?.length ?? 0}). Recarregue a página e marque de novo.`;
 }

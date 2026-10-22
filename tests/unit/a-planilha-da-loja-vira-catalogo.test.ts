@@ -130,3 +130,26 @@ describe("coluna desconhecida é relatada, não ignorada em silêncio", () => {
     expect(r.colunasIgnoradas).toEqual(["Fornecedor"]);
   });
 });
+
+describe("aceita matriz de linhas (string[][]) diretamente de planilhas Excel", () => {
+  it("processa linhas oriundas de parser de .xlsx com o mesmo rigor do CSV", () => {
+    const linhas = [
+      ["Código", "Produto", "Preço", "Marca", "Estoque"],
+      ["IP15-256", "iPhone 15 256GB", "6.299,00", "Apple", "10"],
+      ["S24-128", "Galaxy S24", "4.899,90", "Samsung", "5"],
+    ];
+
+    const r = lerPlanilha(linhas);
+
+    expect("erro" in r).toBe(false);
+    if ("erro" in r) return;
+    expect(r.produtos).toHaveLength(2);
+    expect(r.produtos[0]?.codigo).toBe("IP15-256");
+    expect(r.produtos[0]?.preco_cents).toBe(629900);
+    expect(r.produtos[0]?.controla_estoque).toBe(true);
+    expect(r.produtos[0]?.quantidade).toBe(10);
+    expect(r.produtos[1]?.codigo).toBe("S24-128");
+    expect(r.produtos[1]?.preco_cents).toBe(489990);
+  });
+});
+
