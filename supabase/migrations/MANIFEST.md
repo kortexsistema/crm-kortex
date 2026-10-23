@@ -300,7 +300,7 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20260930210000` | `0241_agent_llm_pricing` | Dynamic pricing table for agent LLM calls (USD per 1M tokens), mapping models like DeepSeek, Llama. |
 - 20261005120000_0242_admin_usage_rollup_rpc.sql: Create RPCs for admin usage rollup to bypass max_rows limit
 
-| `20261007190000` | `0243_supabase_integration_tables_status_mapping` | Adiciona status_mapping jsonb � tabela supabase_integration_tables para regras de atualiza��o externa. |
+| `20261007190000` | `0243_supabase_integration_tables_status_mapping` | Adiciona status_mapping jsonb � tabela supabase_integration_tables para regras de atualiza��o externa. |
 
 | `20261007200000` | `0244_seed_appointment_reminder_skill` | Injeta a skill condicional para lembrete de compromisso. |
 
@@ -309,3 +309,8 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20261021173000` | `0246_storage_ai_policy_spreadsheets` | Permite upload de planilhas (.csv, .xlsx) no bucket ai-policy |
 
 | `20261021233000` | `0247_channel_knobs_window_minutes` | Adiciona suporte a minutos (window_start_minute, window_end_minute) na janela de envio de channel_knobs |
+
+| `20261022120000` | `0248_business_niches` | Schema de nichos de negócio (business_niches), governança da associação com organizações (organizations.niche_id) e retrocompatibilidade com e-commerce (ecommerce padrão). |
+
+| `20261023120000` | `0249_vehicles` | Schema de veículos (vehicles, vehicles_safe) e lotes de importação (vehicle_import_batches) do nicho automotivo, com proteção de colunas confidenciais e isolamento RLS. |
+| `20261024120000` | `0250_vehicle_import_transactional` | Confirmação atômica transacional de importação de veículos via PostgreSQL RPC (fn_confirm_vehicle_import), índice de idempotência e trava FOR UPDATE. |

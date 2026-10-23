@@ -23831,3 +23831,572 @@ alter table public.channel_knobs
     and
     (window_end_minute is null or (window_end_minute >= 0 and window_end_minute <= 59))
   );
+
+-- 20261022120000_0248_business_niches.sql
+create table if not exists public.business_niches (
+  id text primary key,
+  label text not null,
+  description text,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.business_niches enable row level security;
+
+drop policy if exists business_niches_select on public.business_niches;
+create policy business_niches_select on public.business_niches
+  for select
+  to authenticated
+  using (active = true or public.fn_is_platform_admin());
+
+drop policy if exists business_niches_platform_admin_write on public.business_niches;
+create policy business_niches_platform_admin_write on public.business_niches
+  for all
+  to authenticated
+  using (public.fn_is_platform_admin())
+  with check (public.fn_is_platform_admin());
+
+revoke all on public.business_niches from anon;
+grant select on public.business_niches to authenticated;
+grant all on public.business_niches to service_role;
+
+insert into public.business_niches (id, label, description, active)
+values
+  ('ecommerce', 'Comércio Eletrônico', 'Catálogo de produtos, pedidos, integração Nuvemshop e vendas online.', true),
+  ('vehicles', 'Veículos & Automotivo', 'Estoque de veículos, modelos, marcas, quilometragem, preços e status comercial.', true)
+on conflict (id) do update set
+  label = excluded.label,
+  description = excluded.description,
+  active = excluded.active;
+
+alter table public.organizations
+  add column if not exists niche_id text not null default 'ecommerce'
+  references public.business_niches(id);
+
+create index if not exists idx_organizations_niche_id
+  on public.organizations(niche_id);
+
+-- 20261023120000_0249_vehicles.sql
+create table if not exists public.vehicle_import_batches (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+
+  filename text not null,
+  file_size_bytes bigint check (file_size_bytes is null or file_size_bytes >= 0),
+  file_hash text,
+
+  total_rows integer not null default 0 check (total_rows >= 0),
+  imported_count integer not null default 0 check (imported_count >= 0),
+  duplicate_count integer not null default 0 check (duplicate_count >= 0),
+  error_count integer not null default 0 check (error_count >= 0),
+
+  status text not null default 'preview' check (status in ('preview', 'completed', 'failed', 'rolled_back')),
+  errors jsonb not null default '[]'::jsonb check (jsonb_typeof(errors) = 'array'),
+  metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata) = 'object'),
+
+  created_by uuid references auth.users(id) on delete set null,
+  confirmed_by uuid references auth.users(id) on delete set null,
+  confirmed_at timestamptz,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_vehicle_import_batches_org_created
+  on public.vehicle_import_batches (organization_id, created_at desc);
+
+create index if not exists idx_vehicle_import_batches_org_status
+  on public.vehicle_import_batches (organization_id, status);
+
+drop trigger if exists trg_vehicle_import_batches_updated_at on public.vehicle_import_batches;
+create trigger trg_vehicle_import_batches_updated_at
+  before update on public.vehicle_import_batches
+  for each row execute function public.fn_set_updated_at();
+
+alter table public.vehicle_import_batches enable row level security;
+
+drop policy if exists vehicle_import_batches_select on public.vehicle_import_batches;
+create policy vehicle_import_batches_select on public.vehicle_import_batches
+  for select
+  to authenticated
+  using (
+    public.fn_is_platform_admin()
+    or (
+      (organization_id in (select public.fn_user_org_ids()))
+      and exists (
+        select 1 from public.organizations o
+        where o.id = public.vehicle_import_batches.organization_id
+          and o.niche_id = 'vehicles'
+      )
+    )
+  );
+
+drop policy if exists vehicle_import_batches_write on public.vehicle_import_batches;
+create policy vehicle_import_batches_write on public.vehicle_import_batches
+  for all
+  to authenticated
+  using (
+    public.fn_is_platform_admin()
+    or (
+      (organization_id in (select public.fn_user_org_ids()))
+      and public.fn_role_at_least(organization_id, 'manager')
+      and exists (
+        select 1 from public.organizations o
+        where o.id = public.vehicle_import_batches.organization_id
+          and o.niche_id = 'vehicles'
+      )
+    )
+  )
+  with check (
+    public.fn_is_platform_admin()
+    or (
+      (organization_id in (select public.fn_user_org_ids()))
+      and public.fn_role_at_least(organization_id, 'manager')
+      and exists (
+        select 1 from public.organizations o
+        where o.id = public.vehicle_import_batches.organization_id
+          and o.niche_id = 'vehicles'
+      )
+    )
+  );
+
+revoke all on public.vehicle_import_batches from anon;
+grant select, insert, update on public.vehicle_import_batches to authenticated;
+grant all on public.vehicle_import_batches to service_role;
+
+create table if not exists public.vehicles (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  import_batch_id uuid references public.vehicle_import_batches(id) on delete set null,
+
+  marca text not null,
+  modelo text not null,
+  versao text,
+  ano_fabricacao integer check (ano_fabricacao is null or (ano_fabricacao >= 1900 and ano_fabricacao <= 2100)),
+  ano_modelo integer check (ano_modelo is null or (ano_modelo >= 1900 and ano_modelo <= 2100)),
+  cor text,
+  combustivel text check (combustivel is null or combustivel in ('flex', 'gasolina', 'diesel', 'etanol', 'eletrico', 'hibrido', 'gnv', 'outro')),
+  cambio text check (cambio is null or cambio in ('manual', 'automatico', 'automatizado', 'cvt', 'outro')),
+
+  quilometragem integer check (quilometragem is null or quilometragem >= 0),
+  preco_cents bigint check (preco_cents is null or preco_cents >= 0),
+  moeda text not null default 'BRL' check (moeda ~ '^[A-Z]{3}$'),
+
+  status text not null default 'disponivel' check (status in ('disponivel', 'reservado', 'vendido', 'em_preparacao')),
+
+  opcionais text[] not null default '{}',
+  fotos_urls text[] not null default '{}',
+  placa_final text check (placa_final is null or placa_final ~ '^[0-9A-Za-z]$'),
+
+  placa_completa text,
+  chassi text,
+  custo_aquisicao_cents bigint check (custo_aquisicao_cents is null or custo_aquisicao_cents >= 0),
+  custo_preparacao_cents bigint check (custo_preparacao_cents is null or custo_preparacao_cents >= 0),
+  observacoes_internas text,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_vehicles_org_status
+  on public.vehicles (organization_id, status);
+
+create index if not exists idx_vehicles_org_marca_modelo
+  on public.vehicles (organization_id, lower(marca), lower(modelo));
+
+create index if not exists idx_vehicles_org_preco
+  on public.vehicles (organization_id, preco_cents)
+  where preco_cents is not null;
+
+create index if not exists idx_vehicles_org_ano
+  on public.vehicles (organization_id, ano_modelo)
+  where ano_modelo is not null;
+
+create index if not exists idx_vehicles_batch_id
+  on public.vehicles (import_batch_id)
+  where import_batch_id is not null;
+
+drop trigger if exists trg_vehicles_updated_at on public.vehicles;
+create trigger trg_vehicles_updated_at
+  before update on public.vehicles
+  for each row execute function public.fn_set_updated_at();
+
+alter table public.vehicles enable row level security;
+
+drop policy if exists vehicles_select on public.vehicles;
+create policy vehicles_select on public.vehicles
+  for select
+  to authenticated
+  using (
+    public.fn_is_platform_admin()
+    or (
+      (organization_id in (select public.fn_user_org_ids()))
+      and exists (
+        select 1 from public.organizations o
+        where o.id = public.vehicles.organization_id
+          and o.niche_id = 'vehicles'
+      )
+    )
+  );
+
+drop policy if exists vehicles_write on public.vehicles;
+create policy vehicles_write on public.vehicles
+  for all
+  to authenticated
+  using (
+    public.fn_is_platform_admin()
+    or (
+      (organization_id in (select public.fn_user_org_ids()))
+      and public.fn_role_at_least(organization_id, 'manager')
+      and exists (
+        select 1 from public.organizations o
+        where o.id = public.vehicles.organization_id
+          and o.niche_id = 'vehicles'
+      )
+    )
+  )
+  with check (
+    public.fn_is_platform_admin()
+    or (
+      (organization_id in (select public.fn_user_org_ids()))
+      and public.fn_role_at_least(organization_id, 'manager')
+      and exists (
+        select 1 from public.organizations o
+        where o.id = public.vehicles.organization_id
+          and o.niche_id = 'vehicles'
+      )
+    )
+  );
+
+create or replace view public.vehicles_safe
+  with (security_invoker = true) as
+select
+  id,
+  organization_id,
+  import_batch_id,
+  marca,
+  modelo,
+  versao,
+  ano_fabricacao,
+  ano_modelo,
+  cor,
+  combustivel,
+  cambio,
+  quilometragem,
+  preco_cents,
+  moeda,
+  status,
+  opcionais,
+  fotos_urls,
+  placa_final,
+  created_at,
+  updated_at
+from public.vehicles;
+
+revoke all on public.vehicles from anon, authenticated;
+
+grant select (
+  id,
+  organization_id,
+  import_batch_id,
+  marca,
+  modelo,
+  versao,
+  ano_fabricacao,
+  ano_modelo,
+  cor,
+  combustivel,
+  cambio,
+  quilometragem,
+  preco_cents,
+  moeda,
+  status,
+  opcionais,
+  fotos_urls,
+  placa_final,
+  created_at,
+  updated_at
+) on public.vehicles to authenticated;
+
+grant insert, update, delete on public.vehicles to authenticated;
+grant all on public.vehicles to service_role;
+
+revoke all on public.vehicles_safe from anon;
+grant select on public.vehicles_safe to authenticated;
+grant all on public.vehicles_safe to service_role;
+
+-- 20261024120000_0250_vehicle_import_transactional.sql
+-- Migration 0250: Confirmação transacional e atômica de importação de veículos
+-- Subetapa 2.6: Garante atomicidade ACID real (PostgreSQL PL/pgSQL RPC)
+-- 1. Coluna idempotency_key e índice único parcial em vehicle_import_batches
+-- 2. Função public.fn_confirm_vehicle_import com trava FOR UPDATE, verificação de nicho,
+--    autorização (manager+), deduplicação no estoque e rollback total em caso de erro.
+-- 3. Proteção rigorosa de execução: SECURITY DEFINER com search_path = public, pg_temp,
+--    revogação para public, anon e authenticated, e grant exclusivo para service_role.
+
+-- ============================================================================
+-- 1. COLUNA E ÍNDICE DE IDEMPOTÊNCIA EM vehicle_import_batches
+-- ============================================================================
+alter table public.vehicle_import_batches
+  add column if not exists idempotency_key text;
+
+create unique index if not exists uq_vehicle_import_batches_org_idempotency
+  on public.vehicle_import_batches (organization_id, idempotency_key)
+  where idempotency_key is not null;
+
+-- ============================================================================
+-- 2. FUNÇÃO TRANSACIONAL DE CONFIRMAÇÃO (fn_confirm_vehicle_import)
+-- ============================================================================
+create or replace function public.fn_confirm_vehicle_import(
+  p_org_id          uuid,
+  p_batch_id        uuid,
+  p_actor_id        uuid,
+  p_idempotency_key text,
+  p_file_hash       text,
+  p_vehicles        jsonb,
+  p_errors          jsonb default '[]'::jsonb
+) returns jsonb
+  language plpgsql
+  volatile
+  security definer
+  set search_path to 'public', 'pg_temp'
+as $$
+declare
+  v_batch           public.vehicle_import_batches%rowtype;
+  v_niche           text;
+  v_is_admin        boolean;
+  v_is_platform     boolean;
+  v_imported_count  integer := 0;
+  v_duplicate_count integer := 0;
+  v_stock_dups      jsonb := '[]'::jsonb;
+  v_confirmed_at    timestamptz := now();
+  v_record          jsonb;
+  v_chassi          text;
+  v_placa_completa  text;
+  v_exists          boolean;
+begin
+  -- 1. Validação defensiva de parâmetros obrigatórios
+  if p_org_id is null or p_batch_id is null or p_actor_id is null then
+    raise exception 'invalid_arguments: p_org_id, p_batch_id e p_actor_id são obrigatórios'
+      using errcode = '22023';
+  end if;
+
+  if p_idempotency_key is null or length(trim(p_idempotency_key)) < 8 then
+    raise exception 'invalid_arguments: idempotency_key deve ter pelo menos 8 caracteres'
+      using errcode = '22023';
+  end if;
+
+  if p_vehicles is null or jsonb_typeof(p_vehicles) <> 'array' then
+    raise exception 'invalid_arguments: p_vehicles deve ser um array JSON'
+      using errcode = '22023';
+  end if;
+
+  -- 2. Verificação estrita de nicho da organização (fail-closed)
+  select o.niche_id into v_niche
+    from public.organizations o
+   where o.id = p_org_id;
+
+  if v_niche is null or v_niche <> 'vehicles' then
+    raise exception 'forbidden_niche: organização não pertence ao nicho vehicles'
+      using errcode = '42501';
+  end if;
+
+  -- 3. Verificação de autorização do ator (manager+ na org ou platform_admin)
+  select exists(
+    select 1 from public.user_organizations uo
+     where uo.organization_id = p_org_id
+       and uo.user_id = p_actor_id
+       and uo.role in ('manager', 'admin')
+       and uo.revoked_at is null
+  ) into v_is_admin;
+
+  if not v_is_admin then
+    select exists(
+      select 1 from public.platform_admins pa
+       where pa.user_id = p_actor_id
+         and pa.revoked_at is null
+    ) into v_is_platform;
+
+    if not v_is_platform then
+      raise exception 'unauthorized_role: ator não possui privilégios de manager ou admin'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  -- 4. Trava pessimista no lote de importação (FOR UPDATE)
+  select * into v_batch
+    from public.vehicle_import_batches
+   where id = p_batch_id
+     and organization_id = p_org_id
+     for update;
+
+  if not found then
+    raise exception 'batch_not_found: lote não encontrado para a organização informada'
+      using errcode = 'P0002';
+  end if;
+
+  -- 5. Verificação de idempotência para lote já concluído
+  if v_batch.status = 'completed' then
+    if (v_batch.idempotency_key is not null and v_batch.idempotency_key = p_idempotency_key)
+       or (v_batch.metadata->>'idempotency_key' = p_idempotency_key) then
+      return jsonb_build_object(
+        'batch_id', v_batch.id,
+        'status', 'completed',
+        'total_rows', v_batch.total_rows,
+        'imported_count', v_batch.imported_count,
+        'duplicate_count', v_batch.duplicate_count,
+        'error_count', v_batch.error_count,
+        'confirmed_at', coalesce(v_batch.confirmed_at, v_batch.updated_at),
+        'idempotency_replayed', true
+      );
+    else
+      raise exception 'batch_already_confirmed: lote já foi confirmado com outra chave de idempotência'
+        using errcode = '23505';
+    end if;
+  end if;
+
+  -- 6. Verificação de status elegível para confirmação
+  if v_batch.status <> 'preview' then
+    raise exception 'invalid_batch_status: lote está em status incompatível para confirmação (%)', v_batch.status
+      using errcode = '22023';
+  end if;
+
+  -- 7. Verificação anti-adulteração de hash do arquivo original
+  if v_batch.file_hash is not null and p_file_hash is not null and v_batch.file_hash <> p_file_hash then
+    raise exception 'file_hash_mismatch: hash do arquivo difere da pré-visualização'
+      using errcode = '22023';
+  end if;
+
+  -- 8. Verificação se a chave de idempotência já pertence a outro lote da mesma organização
+  if exists (
+    select 1 from public.vehicle_import_batches
+     where organization_id = p_org_id
+       and id <> p_batch_id
+       and (idempotency_key = p_idempotency_key or metadata->>'idempotency_key' = p_idempotency_key)
+  ) then
+    raise exception 'idempotency_key_already_used: chave de idempotência já utilizada em outro lote'
+      using errcode = '23505';
+  end if;
+
+  -- 9. Iteração e inserção atômica com deduplicação em tempo real no banco
+  for v_record in select * from jsonb_array_elements(p_vehicles)
+  loop
+    v_chassi := nullif(trim(v_record->>'chassi'), '');
+    v_placa_completa := nullif(trim(v_record->>'placa_completa'), '');
+    v_exists := false;
+
+    if v_chassi is not null or v_placa_completa is not null then
+      select exists(
+        select 1 from public.vehicles v
+         where v.organization_id = p_org_id
+           and (
+             (v_chassi is not null and upper(v.chassi) = upper(v_chassi))
+             or
+             (v_placa_completa is not null and upper(v.placa_completa) = upper(v_placa_completa))
+           )
+      ) into v_exists;
+    end if;
+
+    if v_exists then
+      v_duplicate_count := v_duplicate_count + 1;
+      v_stock_dups := v_stock_dups || jsonb_build_object(
+        'linha', coalesce((v_record->>'linha')::integer, 0),
+        'campo', 'duplicidade',
+        'motivo', format('Veículo (chassi %s / placa %s) já existe no estoque da organização', coalesce(v_chassi, '-'), coalesce(v_placa_completa, '-'))
+      );
+    else
+      -- Mapeamento estrito de colunas autorizadas (ignora campos arbitrários do cliente)
+      insert into public.vehicles (
+        organization_id,
+        import_batch_id,
+        marca,
+        modelo,
+        versao,
+        ano_fabricacao,
+        ano_modelo,
+        cor,
+        combustivel,
+        cambio,
+        quilometragem,
+        preco_cents,
+        moeda,
+        status,
+        opcionais,
+        fotos_urls,
+        placa_final,
+        placa_completa,
+        chassi,
+        custo_aquisicao_cents,
+        custo_preparacao_cents,
+        observacoes_internas
+      ) values (
+        p_org_id,
+        p_batch_id,
+        coalesce(trim(v_record->>'marca'), ''),
+        coalesce(trim(v_record->>'modelo'), ''),
+        nullif(trim(v_record->>'versao'), ''),
+        (v_record->>'ano_fabricacao')::integer,
+        (v_record->>'ano_modelo')::integer,
+        nullif(trim(v_record->>'cor'), ''),
+        nullif(trim(v_record->>'combustivel'), ''),
+        nullif(trim(v_record->>'cambio'), ''),
+        (v_record->>'quilometragem')::integer,
+        (v_record->>'preco_cents')::bigint,
+        coalesce(nullif(trim(v_record->>'moeda'), ''), 'BRL'),
+        coalesce(nullif(trim(v_record->>'status'), ''), 'disponivel'),
+        coalesce((select array_agg(x::text) from jsonb_array_elements_text(coalesce(v_record->'opcionais', '[]'::jsonb)) x), '{}'::text[]),
+        coalesce((select array_agg(x::text) from jsonb_array_elements_text(coalesce(v_record->'fotos_urls', '[]'::jsonb)) x), '{}'::text[]),
+        nullif(trim(v_record->>'placa_final'), ''),
+        v_placa_completa,
+        v_chassi,
+        (v_record->>'custo_aquisicao_cents')::bigint,
+        (v_record->>'custo_preparacao_cents')::bigint,
+        nullif(trim(v_record->>'observacoes_internas'), '')
+      );
+      v_imported_count := v_imported_count + 1;
+    end if;
+  end loop;
+
+  -- 10. Atualização atômica do lote de importação
+  update public.vehicle_import_batches
+     set status = 'completed',
+         idempotency_key = p_idempotency_key,
+         imported_count = v_imported_count,
+         duplicate_count = v_batch.duplicate_count + v_duplicate_count,
+         error_count = v_batch.error_count,
+         errors = coalesce(p_errors, '[]'::jsonb) || v_stock_dups,
+         confirmed_by = p_actor_id,
+         confirmed_at = v_confirmed_at,
+         metadata = jsonb_set(
+           jsonb_set(coalesce(metadata, '{}'::jsonb), '{idempotency_key}', to_jsonb(p_idempotency_key)),
+           '{completed_at}', to_jsonb(to_char(v_confirmed_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+         )
+   where id = p_batch_id
+     and organization_id = p_org_id;
+
+  -- 11. Retorno JSON compatível com VehicleConfirmApiResponse
+  return jsonb_build_object(
+    'batch_id', p_batch_id,
+    'status', 'completed',
+    'total_rows', v_batch.total_rows,
+    'imported_count', v_imported_count,
+    'duplicate_count', v_batch.duplicate_count + v_duplicate_count,
+    'error_count', v_batch.error_count,
+    'confirmed_at', v_confirmed_at,
+    'idempotency_replayed', false
+  );
+end;
+$$;
+
+comment on function public.fn_confirm_vehicle_import(uuid, uuid, uuid, text, text, jsonb, jsonb) is
+  'Confirmação atômica e transacional de lote de importação de veículos. Executa em única transação: trava FOR UPDATE, checa autorização e nicho, deduplica e insere veículos, atualiza o lote e garante rollback total em falhas.';
+
+-- ── OS DOIS REVOKES (CLAUDE.md, item 9) ──
+revoke execute on function public.fn_confirm_vehicle_import(uuid, uuid, uuid, text, text, jsonb, jsonb)
+  from public, anon, authenticated;
+
+grant execute on function public.fn_confirm_vehicle_import(uuid, uuid, uuid, text, text, jsonb, jsonb)
+  to service_role;
+
+notify pgrst, 'reload schema';
+
