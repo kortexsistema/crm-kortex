@@ -44,7 +44,8 @@ export async function GET(
       subscription_expires_at,
       saas_subscription_value_cents,
       saas_ai_limit_cents,
-      saas_enforcement_mode
+      saas_enforcement_mode,
+      niche_id
     `,
     )
     .eq("id", id)

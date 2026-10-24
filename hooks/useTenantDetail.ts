@@ -24,6 +24,7 @@ export interface TenantOrganization {
   saas_subscription_value_cents?: number | null;
   saas_ai_limit_cents?: number | null;
   saas_enforcement_mode?: "off" | "avisar" | "bloquear" | string;
+  niche_id?: string | null;
 }
 
 export interface TenantCounts {

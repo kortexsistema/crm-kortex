@@ -460,12 +460,15 @@ export const AUDIT_ACTIONS = [
   "crm_task.updated",
   "crm_task.deleted",
   "tenant.subscription_updated",
+  "tenant.niche_updated",
   "tenant.subscription_expired_batch",
   "organization.switched",
   "platform_ai_credential.updated",
   "platform_ai_credential.deleted",
   "tenant.approved",
   "tenant.requested_credits",
+  "vehicles.import_previewed",
+  "vehicles.import_confirmed",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

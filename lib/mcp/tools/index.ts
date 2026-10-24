@@ -45,6 +45,7 @@ import {
   crmSaveOrgMemory,
 } from "./evolucao";
 import { crmListContactOrders, crmSearchProducts } from "./comercio";
+import { crmSearchVehicles, crmGetVehicle } from "./veiculos";
 import { crmListPrivacyRequests } from "./privacidade";
 import { queryExternalSupabaseTool } from "./custom_db";
 import {
@@ -110,6 +111,8 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmSaveOrgMemory,
   crmListContactOrders,
   crmSearchProducts,
+  crmSearchVehicles,
+  crmGetVehicle,
   crmListPrivacyRequests,
   queryExternalSupabaseTool,
   // read — organizar a operação (W4)

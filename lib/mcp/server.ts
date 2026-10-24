@@ -13,8 +13,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { z } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveOrganizationNiche } from "@/lib/niches/resolver";
 import { auditMcpToolCall } from "./audit";
-import { ensureRole, ensureScope, type McpAuthResult } from "./auth";
+import { ensureRole, ensureScope, McpAuthError, type McpAuthResult } from "./auth";
 import { allTools } from "./tools";
 import { higienizarUuidsDeAterro } from "./uuid-de-aterro";
 import type { McpContext } from "./types";
@@ -72,6 +73,20 @@ export function createMcpServer(auth: McpAuthResult, requestId: string): McpServ
         try {
           ensureScope(auth.scopes, tool.requiresScope);
           ensureRole(auth.role, tool.requiresRole);
+
+          // Validação de nicho de negócio para ferramentas especializadas
+          if (tool.requiresNiche) {
+            const orgNiche =
+              ctx.nicheId ?? (await resolveOrganizationNiche(supabase, auth.organizationId));
+            if (!orgNiche || orgNiche !== tool.requiresNiche) {
+              throw new McpAuthError(
+                -32002,
+                403,
+                `nicho_incompativel: ferramenta '${tool.name}' requer nicho '${tool.requiresNiche}', mas organização opera em '${orgNiche ?? "indefinido"}'`,
+              );
+            }
+            ctx.nicheId = orgNiche;
+          }
 
           const result = await tool.handler(args as never, ctx);
           const durationMs = Date.now() - startedAt;

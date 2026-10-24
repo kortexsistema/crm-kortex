@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { auditMcpToolCall } from "@/lib/mcp/audit";
 import { McpAuthError, ensureRole, ensureScope } from "@/lib/mcp/auth";
 import type { McpAuthResult } from "@/lib/mcp/auth";
+import { resolveOrganizationNiche } from "@/lib/niches/resolver";
 import { logger } from "@/lib/logger";
 import { allTools, getToolByName } from "@/lib/mcp/tools";
 import { catalogEntry } from "@/lib/mcp/tools/catalog";
@@ -97,6 +98,21 @@ function wrapMcpTool(
       try {
         ensureScope(input.auth.scopes, def.requiresScope);
         ensureRole(input.auth.role, def.requiresRole);
+
+        // ── GOVERNANÇA DE NICHO DE NEGÓCIO ─────────────────────────────────
+        if (def.requiresNiche) {
+          const orgNiche =
+            input.ctx.nicheId !== undefined
+              ? input.ctx.nicheId
+              : await resolveOrganizationNiche(input.supabase, input.ctx.organizationId);
+          if (!orgNiche || orgNiche !== def.requiresNiche) {
+            throw new McpAuthError(
+              -32002,
+              403,
+              `nicho_incompativel: ferramenta '${def.name}' requer nicho '${def.requiresNiche}', mas organização opera em '${orgNiche ?? "indefinido"}'`,
+            );
+          }
+        }
 
         // ── ESCOPO DE FUNIL (spec 17 passo 3) ────────────────────────────────
         //
@@ -237,6 +253,13 @@ export function pickToolsFromMcp(input: PickToolsInput): Record<string, Tool> {
     const def = getToolByName(id);
     if (!def) continue;
     if (def.name === HANDOFF_TOOL_NAME && !input.handoffToolEnabled) continue;
+
+    // Filtro proativo por nicho: ferramentas especializadas só são montadas
+    // para agentes de organizações com o nicho compatível. Ausência ou falha
+    // de resolução bloqueia com segurança (fail-closed).
+    if (def.requiresNiche && input.ctx.nicheId !== def.requiresNiche) {
+      continue;
+    }
 
     // Capacidade `apenasHumano` NÃO é montada no turno do agente.
     //

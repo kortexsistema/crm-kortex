@@ -10,6 +10,7 @@ export const TOOLS_COMERCIO = declararTools([
   {
     name: "crm_list_contact_orders",
     category: "read",
+    requiresNiche: "ecommerce",
     rotulo: "Ver as compras do cliente",
     explicacao:
       "Mostra o que este cliente já comprou, quanto pagou e como está a entrega, para o assistente não prometer prazo no escuro nem repetir uma oferta já aceita.",
@@ -20,6 +21,7 @@ export const TOOLS_COMERCIO = declararTools([
   {
     name: "crm_search_products",
     category: "read",
+    requiresNiche: "ecommerce",
     rotulo: "Procurar produto na loja",
     explicacao:
       "Procura um produto no catálogo da loja e devolve o preço exato e o que está disponível, para o assistente responder com o valor cadastrado em vez de estimar.",

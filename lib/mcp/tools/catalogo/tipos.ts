@@ -7,12 +7,15 @@
  */
 import type { McpToolCategory } from "../../types";
 import type { ToolBundle, ToolRisk } from "../pacotes";
+import type { BusinessNiche } from "@/lib/niches/types";
 
 export interface McpToolCatalogEntry {
   /** CONTRATO DE WIRE — imutavel depois de publicado. */
   name: string;
   /** Dirige requiresScope/requiresRole. Nao e rotulo de tela. */
   category: McpToolCategory;
+  /** Nicho de negócio obrigatório para esta capacidade (ex: 'ecommerce', 'vehicles'). */
+  requiresNiche?: BusinessNiche;
 
   // ---- camada de apresentacao: o que o HUMANO le ----
   /** Verbo no infinitivo, pt-BR. Ex: "Mover oportunidade de etapa". */

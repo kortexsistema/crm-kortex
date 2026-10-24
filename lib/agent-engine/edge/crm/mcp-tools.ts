@@ -23,6 +23,7 @@ import { pickToolsFromMcp, type RuntimeHandoffSignal } from '@/lib/ai/runtime/to
 import { mintEphemeralToken, revokeEphemeralToken } from '@/lib/ai/runtime/mcp_token';
 import type { McpAuthResult } from '@/lib/mcp/auth';
 import type { McpContext } from '@/lib/mcp/types';
+import { resolveOrganizationNiche } from '@/lib/niches/resolver';
 import { buildDynamicSupabaseTools } from './dynamic-tools';
 
 import type { Logger } from '../../obs/logger';
@@ -94,6 +95,7 @@ export async function buildMcpTurnTools(
     apiTokenId: ephemeral.id,
     requestId: ids.jobId,
     supabase: cfg.supabase,
+    nicheId: await resolveOrganizationNiche(cfg.supabase, ids.organizationId),
   };
   const auth: McpAuthResult = {
     organizationId: ids.organizationId,

@@ -14,6 +14,7 @@ import { z } from "zod";
 import type { McpToolDefinition } from "../types";
 import { buscarComRelaxamento } from "@/lib/catalogo/busca";
 import { formatCents } from "@/lib/money";
+import { resolveOrganizationNiche } from "@/lib/niches/resolver";
 
 // ---------------------------------------------------------------------------
 // pedidos de um cliente
@@ -34,7 +35,15 @@ export const crmListContactOrders: McpToolDefinition<typeof pedidosInputShape> =
   category: "read",
   requiresRole: "agent",
   requiresScope: "mcp:read",
+  requiresNiche: "ecommerce",
   handler: async (input, ctx) => {
+    const niche = ctx.nicheId ?? (await resolveOrganizationNiche(ctx.supabase, ctx.organizationId));
+    if (niche !== "ecommerce") {
+      throw new Error(
+        `nicho_incompativel: esta ferramenta requer o nicho 'ecommerce' (nicho atual: '${niche ?? "indefinido"}')`,
+      );
+    }
+
     const { data, error } = await ctx.supabase
       .from("orders")
       .select(
@@ -145,7 +154,15 @@ export const crmSearchProducts: McpToolDefinition<typeof produtosInputShape> = {
   category: "read",
   requiresRole: "agent",
   requiresScope: "mcp:read",
+  requiresNiche: "ecommerce",
   handler: async (input, ctx) => {
+    const niche = ctx.nicheId ?? (await resolveOrganizationNiche(ctx.supabase, ctx.organizationId));
+    if (niche !== "ecommerce") {
+      throw new Error(
+        `nicho_incompativel: esta ferramenta requer o nicho 'ecommerce' (nicho atual: '${niche ?? "indefinido"}')`,
+      );
+    }
+
     // Traz os ativos da org e pontua em memória. A busca por token (palavra
     // difusa, número exato) não é exprimível num `ilike` — e é ela que impede o
     // 128GB de aparecer para quem pediu 256GB. O corte por org acontece no

@@ -34,6 +34,7 @@ function ctxCom(produtos: Array<Record<string, unknown>>): McpContext {
     actor: { type: "ai_agent", id: "run-1", agent_id: "agent-1" },
     apiTokenId: "33333333-3333-4333-8333-333333333333",
     requestId: "44444444-4444-4444-8444-444444444444",
+    nicheId: "ecommerce",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     supabase: { from: () => query } as any,
   } as McpContext;

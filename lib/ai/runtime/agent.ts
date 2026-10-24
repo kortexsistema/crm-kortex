@@ -42,6 +42,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { audit } from "@/lib/audit";
 import type { McpAuthResult } from "@/lib/mcp/auth";
 import type { McpContext } from "@/lib/mcp/types";
+import { resolveOrganizationNiche } from "@/lib/niches/resolver";
 import { computeCostCents } from "./cost";
 import { finalizeRun } from "./finalize";
 import { sendFinalResponse } from "./finalize";
@@ -214,12 +215,13 @@ export function buildModel(provider: string, apiKey: string, modelId: string): L
   }
 }
 
-function totalUsage(steps: ReadonlyArray<{ usage?: Record<string, any> }>) {
+function totalUsage(steps: ReadonlyArray<{ usage?: Record<string, unknown> }>) {
   let inputTokens = 0;
   let outputTokens = 0;
   for (const s of steps) {
-    inputTokens += s.usage?.inputTokens ?? s.usage?.promptTokens ?? 0;
-    outputTokens += s.usage?.outputTokens ?? s.usage?.completionTokens ?? 0;
+    const u = s.usage as Record<string, number | undefined> | undefined;
+    inputTokens += u?.inputTokens ?? u?.promptTokens ?? 0;
+    outputTokens += u?.outputTokens ?? u?.completionTokens ?? 0;
   }
   return { inputTokens, outputTokens };
 }
@@ -487,6 +489,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         "role:ai_operator",
       ],
     };
+    const nicheId = await resolveOrganizationNiche(admin, run.organization_id);
     const ctx: McpContext = {
       organizationId: run.organization_id,
       role: "ai_operator",
@@ -494,6 +497,7 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       apiTokenId: ephemeral.id,
       requestId: run.id,
       supabase: admin,
+      nicheId,
     };
     const handoffSignal: RuntimeHandoffSignal = { triggered: false };
     const tools = pickToolsFromMcp({

@@ -100,6 +100,7 @@ function fakeDb(total: number, tetoDoServidor = 1000, contaOculta = false) {
     ctx: {
       supabase: { from: () => q },
       organizationId: "org-1",
+      nicheId: "ecommerce",
     } as never,
   };
 }

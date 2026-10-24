@@ -23,6 +23,7 @@ import { TOOLS_GOVERNANCA } from "./governanca";
 import { TOOLS_OPERACAO } from "./operacao";
 import { TOOLS_RETENCAO } from "./retencao";
 import { TOOLS_CUSTOM_DB } from "./custom_db";
+import { TOOLS_VEICULOS } from "./veiculos";
 import type { McpToolCatalogEntry } from "./tipos";
 
 export type { McpToolCatalogEntry } from "./tipos";
@@ -39,6 +40,7 @@ export const TOOL_CATALOG: ReadonlyArray<McpToolCatalogEntry> = [
   ...TOOLS_OPERACAO,
   ...TOOLS_RETENCAO,
   ...TOOLS_CUSTOM_DB,
+  ...TOOLS_VEICULOS,
 ];
 
 /**

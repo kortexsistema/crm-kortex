@@ -142,6 +142,11 @@ export interface ActiveOrg {
   name: string;
   role: Role;
   /**
+   * Nicho de negócio da organização ('ecommerce', 'vehicles').
+   * Opcional: preenchido no client context pelo layout autenticado.
+   */
+  niche_id?: string;
+  /**
    * Escopo de visualização da org (G4-01). Opcional: só é preenchido no client
    * context (AppLayout) para a UI do inbox decidir visões visíveis. Não é fonte
    * de autorização — a RLS (fn_can_view_conversation) é quem garante o escopo.

@@ -4,6 +4,7 @@ import { useTenantDetail } from "@/hooks/useTenantDetail";
 import { TenantOverview } from "@/components/admin/tenants/TenantOverview";
 import { TenantActions } from "@/components/admin/tenants/TenantActions";
 import { TenantSubscriptionCard } from "@/components/admin/tenants/TenantSubscriptionCard";
+import { TenantNicheCard } from "@/components/admin/tenants/TenantNicheCard";
 import { SuspendedBanner } from "@/components/admin/tenants/SuspendedBanner";
 import { useT } from "@/hooks/i18n/useT";
 
@@ -63,6 +64,10 @@ export function TenantOverviewClient({ id }: TenantOverviewClientProps) {
           integrations={integrations}
         />
         <div className="space-y-6">
+          <TenantNicheCard
+            organizationId={organization.id}
+            nicheId={organization.niche_id}
+          />
           <TenantSubscriptionCard
             organizationId={organization.id}
             plan={organization.plan}

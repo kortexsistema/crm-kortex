@@ -9,6 +9,7 @@ import type {
   TenantIntegrations,
 } from "@/hooks/useTenantDetail";
 import { useT } from "@/hooks/i18n/useT";
+import { BUSINESS_NICHE_MAP, type BusinessNiche } from "@/lib/niches/types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,6 +109,11 @@ export function TenantOverview({ organization, counts, integrations }: TenantOve
     ? (NUVEMSHOP_VARIANT[nuvemshopStatus] ?? "warning")
     : "neutral";
 
+  const nicheKey = (organization.niche_id as BusinessNiche) in BUSINESS_NICHE_MAP
+    ? (organization.niche_id as BusinessNiche)
+    : "ecommerce";
+  const nicheLabel = BUSINESS_NICHE_MAP[nicheKey].label;
+
   return (
     <div className="space-y-6">
       {/* Info card */}
@@ -117,6 +123,10 @@ export function TenantOverview({ organization, counts, integrations }: TenantOve
         </h2>
         <div>
           <InfoRow label={t("Plano")} value={<Badge variant="neutral" className="capitalize">{plan}</Badge>} />
+          <InfoRow
+            label={t("Nicho de negócio")}
+            value={<Badge variant="neutral" className="uppercase text-[10px] tracking-wider">{nicheLabel}</Badge>}
+          />
           <InfoRow label={t("Razão social")} value={organization.legal_name} />
           <InfoRow label="CNPJ" value={organization.cnpj} />
           <InfoRow label={t("Onboarding concluído")} value={formatDate(organization.onboarded_at, tagDoIdioma)} />

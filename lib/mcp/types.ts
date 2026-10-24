@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Actor } from "@/lib/api/handlers/types";
 import type { Role } from "@/lib/auth/types";
+import type { BusinessNiche } from "@/lib/niches/types";
 
 export interface McpContext {
   /** Somente o runtime in-process fornece o job original, nunca o cliente MCP. */
@@ -20,6 +21,8 @@ export interface McpContext {
   actor: Actor;
   apiTokenId: string;
   requestId: string;
+  /** Nicho de negócio da organização (se resolvido). */
+  nicheId?: BusinessNiche | null;
   /** Service-role admin client. Tools devem filtrar `organization_id` em toda query. */
   supabase: SupabaseClient;
 }
@@ -38,6 +41,11 @@ export interface McpToolDefinition<TInput extends z.ZodRawShape = z.ZodRawShape>
    * Ausência → -32002 forbidden.
    */
   requiresScope: "mcp:read" | "mcp:write";
+  /**
+   * Nicho obrigatório da ferramenta (ex: "ecommerce", "vehicles").
+   * Quando ausente/undefined, a ferramenta é universal (CRM core).
+   */
+  requiresNiche?: BusinessNiche;
   handler: (
     input: z.infer<z.ZodObject<TInput>>,
     ctx: McpContext,

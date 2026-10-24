@@ -2,6 +2,7 @@
 import { AlertsBell } from "./AlertsBell";
 import { MobileSidebar } from "./MobileSidebar";
 import { TenantSwitcher } from "./TenantSwitcher";
+import { NicheBadge } from "./NicheBadge";
 import { UserMenu } from "./UserMenu";
 import { SearchTrigger } from "./SearchTrigger";
 
@@ -11,6 +12,7 @@ export function TopBar() {
       <div className="flex min-w-0 items-center gap-2">
         <MobileSidebar />
         <TenantSwitcher />
+        <NicheBadge />
       </div>
       <div className="flex min-w-0 flex-1 justify-center md:max-w-md">
         <SearchTrigger />
