@@ -4,7 +4,7 @@ import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import { resolveOrganizationNiche } from "@/lib/niches/resolver";
 import { createClient } from "@/lib/supabase/server";
-import type { SafeVehiclePreview } from "@/lib/vehicles/sanitizer";
+import type { VehicleSafeRow } from "@/lib/vehicles/types";
 import { VehiclesClient } from "./_client";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,7 @@ export default async function VehiclesPage() {
 
   return (
     <VehiclesClient
-      inicial={(data ?? []) as unknown as SafeVehiclePreview[]}
+      inicial={(data ?? []) as unknown as VehicleSafeRow[]}
       podeEditar={podeEditar}
       nicheId={niche}
     />

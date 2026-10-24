@@ -469,6 +469,9 @@ export const AUDIT_ACTIONS = [
   "tenant.requested_credits",
   "vehicles.import_previewed",
   "vehicles.import_confirmed",
+  "vehicles.photos_uploaded",
+  "vehicles.photo_deleted",
+  "vehicles.photos_reordered",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

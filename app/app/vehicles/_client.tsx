@@ -5,12 +5,14 @@ import {
   UploadSimple,
   MagnifyingGlass,
   Storefront,
+  ImageIcon,
 } from "@/lib/ui/icons";
 import { VehicleImportModal } from "@/components/vehicles/VehicleImportModal";
-import type { SafeVehiclePreview } from "@/lib/vehicles/sanitizer";
+import { VehicleGalleryModal } from "@/components/vehicles/VehicleGalleryModal";
+import type { VehicleSafeRow } from "@/lib/vehicles/types";
 
 interface VehiclesClientProps {
-  inicial: SafeVehiclePreview[];
+  inicial: VehicleSafeRow[];
   podeEditar: boolean;
   nicheId: string;
 }
@@ -30,8 +32,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function VehiclesClient({ inicial, podeEditar }: VehiclesClientProps) {
-  const [veiculos, setVeiculos] = useState<SafeVehiclePreview[]>(inicial);
-  const [modalAberto, setModalAberto] = useState(false);
+  const [veiculos, setVeiculos] = useState<VehicleSafeRow[]>(inicial);
+  const [modalImportAberto, setModalImportAberto] = useState(false);
+  const [veiculoGaleria, setVeiculoGaleria] = useState<VehicleSafeRow | null>(null);
+  const [modalGaleriaAberto, setModalGaleriaAberto] = useState(false);
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [_reloading, setReloading] = useState(false);
@@ -50,6 +54,20 @@ export function VehiclesClient({ inicial, podeEditar }: VehiclesClientProps) {
       // Falha silenciosa na atualização em background
     } finally {
       setReloading(false);
+    }
+  };
+
+  const abrirGaleria = (v: VehicleSafeRow) => {
+    setVeiculoGaleria(v);
+    setModalGaleriaAberto(true);
+  };
+
+  const handleFotosUpdated = (vehicleId: string, novasFotos: string[]) => {
+    setVeiculos((prev) =>
+      prev.map((item) => (item.id === vehicleId ? { ...item, fotos_urls: novasFotos } : item)),
+    );
+    if (veiculoGaleria && veiculoGaleria.id === vehicleId) {
+      setVeiculoGaleria((prev) => (prev ? { ...prev, fotos_urls: novasFotos } : null));
     }
   };
 
@@ -77,13 +95,13 @@ export function VehiclesClient({ inicial, podeEditar }: VehiclesClientProps) {
             </span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Gestão do estoque automotivo da empresa e importação estruturada para consultas da IA Letícia.
+            Gestão do estoque automotivo da empresa, fotos para vitrine e alimentação do catálogo da IA Letícia.
           </p>
         </div>
 
         {podeEditar && (
           <button
-            onClick={() => setModalAberto(true)}
+            onClick={() => setModalImportAberto(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm"
           >
             <UploadSimple size={18} weight="bold" />
@@ -141,12 +159,13 @@ export function VehiclesClient({ inicial, podeEditar }: VehiclesClientProps) {
                 <th className="px-4 py-3 font-medium">Preço de Venda</th>
                 <th className="px-4 py-3 font-medium">Placa Final</th>
                 <th className="px-4 py-3 font-medium">Situação</th>
+                <th className="px-4 py-3 font-medium text-right">Galeria</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {veiculosFiltrados.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center">
+                  <td colSpan={9} className="p-12 text-center">
                     <div className="flex flex-col items-center gap-3 text-muted-foreground">
                       <div className="p-4 bg-muted/40 rounded-full">
                         <Storefront size={32} />
@@ -165,7 +184,7 @@ export function VehiclesClient({ inicial, podeEditar }: VehiclesClientProps) {
                       </div>
                       {veiculos.length === 0 && podeEditar && (
                         <button
-                          onClick={() => setModalAberto(true)}
+                          onClick={() => setModalImportAberto(true)}
                           className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-medium rounded-lg hover:bg-primary/90 transition-colors"
                         >
                           <UploadSimple size={16} weight="bold" />
@@ -176,62 +195,121 @@ export function VehiclesClient({ inicial, podeEditar }: VehiclesClientProps) {
                   </td>
                 </tr>
               ) : (
-                veiculosFiltrados.map((v, i) => (
-                  <tr key={i} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-foreground">
-                        {v.marca} {v.modelo}
-                      </div>
-                      {v.versao && <div className="text-xs text-muted-foreground">{v.versao}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">
-                      {v.ano_fabricacao && v.ano_modelo
-                        ? `${v.ano_fabricacao}/${v.ano_modelo}`
-                        : v.ano_modelo ?? "-"}
-                    </td>
-                    <td className="px-4 py-3 capitalize text-xs">{v.cor ?? "-"}</td>
-                    <td className="px-4 py-3 text-xs">
-                      {v.quilometragem !== null
-                        ? `${v.quilometragem.toLocaleString("pt-BR")} km`
-                        : "-"}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground capitalize">
-                      {v.cambio ? `${v.cambio}` : "-"}
-                      {v.combustivel ? ` • ${v.combustivel}` : ""}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-emerald-600 dark:text-emerald-400">
-                      {v.preco_cents !== null
-                        ? (v.preco_cents / 100).toLocaleString("pt-BR", {
-                            style: "currency",
-                            currency: v.moeda || "BRL",
-                          })
-                        : "A consultar"}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">
-                      {v.placa_final ? `***${v.placa_final}` : "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border ${
-                          STATUS_CORES[v.status] ?? "bg-muted text-muted-foreground border-border"
-                        }`}
-                      >
-                        {STATUS_LABELS[v.status] ?? v.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                veiculosFiltrados.map((v) => {
+                  const temFotos = v.fotos_urls && v.fotos_urls.length > 0;
+                  const fotoCapa = temFotos ? v.fotos_urls[0] : null;
+
+                  return (
+                    <tr key={v.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {/* Miniatura da Capa ou Placeholder */}
+                          <button
+                            type="button"
+                            onClick={() => abrirGaleria(v)}
+                            className="group relative shrink-0 w-12 h-9 rounded-md overflow-hidden bg-muted/40 border border-border hover:border-primary/50 transition-all focus:outline-hidden"
+                            title="Abrir galeria de fotos"
+                          >
+                            {fotoCapa ? (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={fotoCapa}
+                                  alt={`${v.marca} ${v.modelo}`}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                  loading="lazy"
+                                />
+                                <span className="absolute bottom-0 right-0 bg-black/75 text-[9px] font-bold text-white px-1 rounded-tl-xs">
+                                  {v.fotos_urls.length}
+                                </span>
+                              </>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-muted-foreground group-hover:text-foreground">
+                                <ImageIcon size={16} />
+                              </div>
+                            )}
+                          </button>
+
+                          <div>
+                            <div className="font-semibold text-foreground">
+                              {v.marca} {v.modelo}
+                            </div>
+                            {v.versao && <div className="text-xs text-muted-foreground">{v.versao}</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {v.ano_fabricacao && v.ano_modelo
+                          ? `${v.ano_fabricacao}/${v.ano_modelo}`
+                          : v.ano_modelo ?? "-"}
+                      </td>
+                      <td className="px-4 py-3 capitalize text-xs">{v.cor ?? "-"}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {v.quilometragem !== null
+                          ? `${v.quilometragem.toLocaleString("pt-BR")} km`
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground capitalize">
+                        {v.cambio ? `${v.cambio}` : "-"}
+                        {v.combustivel ? ` • ${v.combustivel}` : ""}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-emerald-600 dark:text-emerald-400">
+                        {v.preco_cents !== null
+                          ? (v.preco_cents / 100).toLocaleString("pt-BR", {
+                              style: "currency",
+                              currency: v.moeda || "BRL",
+                            })
+                          : "A consultar"}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs">
+                        {v.placa_final ? `***${v.placa_final}` : "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+                            STATUS_CORES[v.status] ?? "bg-muted text-muted-foreground border-border"
+                          }`}
+                        >
+                          {STATUS_LABELS[v.status] ?? v.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => abrirGaleria(v)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted/50 text-foreground transition-colors"
+                          title="Gerenciar galeria de fotos"
+                        >
+                          <ImageIcon size={14} className="text-muted-foreground" />
+                          <span>Fotos ({v.fotos_urls?.length ?? 0})</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal de Importação */}
+      {/* Modal de Importação de Planilha */}
       <VehicleImportModal
-        isOpen={modalAberto}
-        onClose={() => setModalAberto(false)}
+        isOpen={modalImportAberto}
+        onClose={() => setModalImportAberto(false)}
         onSuccess={fetchEstoque}
+      />
+
+      {/* Modal de Galeria de Fotos */}
+      <VehicleGalleryModal
+        isOpen={modalGaleriaAberto}
+        onClose={() => {
+          setModalGaleriaAberto(false);
+          setVeiculoGaleria(null);
+        }}
+        vehicle={veiculoGaleria}
+        onPhotosUpdated={handleFotosUpdated}
+        podeEditar={podeEditar}
       />
     </div>
   );
