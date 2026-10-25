@@ -24438,3 +24438,20 @@ create policy "vehicle_photos_manager_delete" on storage.objects
     and (storage.foldername(name))[1] in (select public.fn_user_org_ids()::text)
   );
 
+-- 20261026120000_0252_google_sheets_stock_integration.sql
+alter table "public"."tenant_integrations"
+  drop constraint if exists "tenant_integrations_provider_check";
+
+alter table "public"."tenant_integrations"
+  add constraint "tenant_integrations_provider_check"
+  check ("provider" = any (array[
+    'nuvemshop'::text,
+    'vtex'::text,
+    'shopify'::text,
+    'external_supabase'::text,
+    'google_sheets'::text
+  ]));
+
+notify pgrst, 'reload schema';
+
+

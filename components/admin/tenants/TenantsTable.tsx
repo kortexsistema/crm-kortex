@@ -203,7 +203,16 @@ export function TenantsTable({
               return (
                 <TableRow key={row.id}>
                   <TableCell className="font-mono text-xs">{row.slug}</TableCell>
-                  <TableCell className="font-medium">{row.display_name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{row.display_name}</span>
+                      {row.niche_id === "vehicles" ? (
+                        <Badge variant="neutral" className="text-[10px] px-1.5 py-0 font-normal select-none">
+                          🚗 Veículos
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {shortCnpj(row.cnpj)}
                   </TableCell>

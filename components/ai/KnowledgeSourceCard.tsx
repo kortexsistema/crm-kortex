@@ -19,6 +19,9 @@ import { useT } from "@/hooks/i18n/useT";
 import { useState } from "react";
 import {
   BookOpen,
+  Clock,
+  ExternalLink,
+  FileSpreadsheet,
   FileText,
   HelpCircle,
   MessageSquare,
@@ -26,12 +29,15 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
+import { toast } from "sonner";
 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SourceStatusBadge, deriveBadgeStatus } from "@/components/ai/SourceStatusBadge";
 import { TrechosDoMaterialDialog } from "@/components/ai/TrechosDoMaterialDialog";
 import { EditarFaqDialog } from "@/components/ai/EditarFaqDialog";
+import { syncGoogleSheetsNow } from "@/app/actions/integrations/syncGoogleSheetsNow";
 import {
   TIPO_DE_FONTE_POR_ID,
   canonizarTipoDeFonte,
@@ -86,6 +92,7 @@ export function KnowledgeSourceCard({
   const tagDoIdioma = useTagDeIdioma();
   const [vendoTrechos, setVendoTrechos] = useState(false);
   const [editando, setEditando] = useState(false);
+  const [sincronizandoPlanilha, setSincronizandoPlanilha] = useState(false);
 
   const tipo = canonizarTipoDeFonte(source.source_type) ?? "faq";
   const meta = TIPO_DE_FONTE_POR_ID.get(tipo);
@@ -97,6 +104,30 @@ export function KnowledgeSourceCard({
     (derived === "failed" || derived === "sem_credencial") && source.last_index_error;
   const temTrechos = (source.chunks_count ?? 0) > 0;
 
+  const sourceMetadata = (source.source_metadata as Record<string, unknown>) || {};
+  const isGoogleSheets =
+    sourceMetadata.origem === "google_sheets" || Boolean(sourceMetadata.sheet_url);
+  const lastSyncedAt = (sourceMetadata.last_synced_at as string) || null;
+
+  async function handleSyncGoogleSheets() {
+    setSincronizandoPlanilha(true);
+    try {
+      const res = await syncGoogleSheetsNow();
+      if (res.ok) {
+        toast.success(
+          `${t("Planilha sincronizada!")} ${res.data.total} ${t("produtos")} (${res.data.criados} ${t("novos")}, ${res.data.atualizados} ${t("atualizados")}).`,
+        );
+        onMudou();
+      } else {
+        toast.error(res.error?.message || t("Erro ao sincronizar planilha Google."));
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("Falha na sincronização."));
+    } finally {
+      setSincronizandoPlanilha(false);
+    }
+  }
+
   return (
     <Card className="flex h-full flex-col" data-testid={`material-${source.id}`}>
       <CardHeader>
@@ -107,9 +138,17 @@ export function KnowledgeSourceCard({
           </div>
           <SourceStatusBadge source={source} />
         </div>
-        <p className="text-sm text-text-muted">
-          {meta?.rotulo ? t(meta.rotulo) : source.source_type}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-text-muted">
+            {meta?.rotulo ? t(meta.rotulo) : source.source_type}
+          </p>
+          {isGoogleSheets && (
+            <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <FileSpreadsheet className="h-3 w-3" />
+              Google Sheets
+            </span>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="flex-1 space-y-2 text-sm">
@@ -121,6 +160,34 @@ export function KnowledgeSourceCard({
           <span className="text-text-muted">{t("Trechos que o agente encontra")}</span>
           <span data-testid={`material-trechos-${source.id}`}>{source.chunks_count ?? 0}</span>
         </div>
+
+        {/* Informações da sincronização com Google Sheets */}
+        {isGoogleSheets && lastSyncedAt && (
+          <div className="flex items-baseline justify-between text-xs text-text-muted pt-1 border-t border-border/50">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {t("Última sincronização")}
+            </span>
+            <span className="font-medium text-text-primary">
+              {formatRelative(lastSyncedAt, tagDoIdioma, t)}
+            </span>
+          </div>
+        )}
+
+        {/* Sugestão de vinculação quando é catálogo mas ainda não tem planilha vinculada */}
+        {tipo === "catalogo" && !isGoogleSheets && !arquivado && (
+          <div className="mt-2 rounded-md border border-dashed border-border p-2 text-xs text-text-muted">
+            <p>{t("Sincronize o estoque e preços vinculando uma Planilha Google.")}</p>
+            <Link
+              href="/app/settings/integrations"
+              className="mt-1 inline-flex items-center gap-1 text-accent font-medium hover:underline"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              {t("Vincular Planilha Google")}
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
+        )}
 
         {/* Quem usa este material. Sem isto, arquivar é um tiro no escuro: não dá
             para saber quantos assistentes param de saber daquilo. */}
@@ -146,19 +213,36 @@ export function KnowledgeSourceCard({
       </CardContent>
 
       <CardFooter className="flex flex-wrap gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={arquivado || isReindexing}
-          onClick={onReindex}
-          data-testid={`material-reindexar-${source.id}`}
-        >
-          <RefreshCw
-            className={`mr-2 h-3.5 w-3.5 ${isReindexing ? "animate-spin" : ""}`}
-            aria-hidden
-          />
-          {isReindexing ? t("Preparando…") : t("Preparar de novo")}
-        </Button>
+        {isGoogleSheets ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={arquivado || sincronizandoPlanilha || isReindexing}
+            onClick={handleSyncGoogleSheets}
+            data-testid={`material-sync-sheets-${source.id}`}
+          >
+            <RefreshCw
+              className={`mr-2 h-3.5 w-3.5 ${sincronizandoPlanilha ? "animate-spin" : ""}`}
+              aria-hidden
+            />
+            {sincronizandoPlanilha ? t("Sincronizando…") : t("Sincronizar Planilha")}
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={arquivado || isReindexing}
+            onClick={onReindex}
+            data-testid={`material-reindexar-${source.id}`}
+          >
+            <RefreshCw
+              className={`mr-2 h-3.5 w-3.5 ${isReindexing ? "animate-spin" : ""}`}
+              aria-hidden
+            />
+            {isReindexing ? t("Preparando…") : t("Preparar de novo")}
+          </Button>
+        )}
+
 
         {temTrechos ? (
           <>

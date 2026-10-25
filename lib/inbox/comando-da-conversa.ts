@@ -253,11 +253,13 @@ export function comandoDaConversa(fatos: FatosDoComando, agora: Date = new Date(
             // conversa, então ela nomeia o motivo mesmo havendo silêncio local —
             // senão a tela ofereceria "devolver ao automático" explicando o motivo
             // menor, e a pessoa clicaria esperando o efeito errado.
-            silencio.duravel
-            ? fatos.assigned_to_user_id
-              ? "atendente_no_comando"
-              : "pausado"
-            : "resposta_humana_recente";
+            fatos.status === "pending" && !fatos.assigned_to_user_id
+            ? "pausado"
+            : silencio.duravel
+              ? fatos.assigned_to_user_id
+                ? "atendente_no_comando"
+                : "pausado"
+              : "resposta_humana_recente";
 
   return {
     comando: comandoFinal,
@@ -266,7 +268,10 @@ export function comandoDaConversa(fatos: FatosDoComando, agora: Date = new Date(
     // `FatosDoComando`. Devolver não desfaz opt-out, e o botão seria decorativo.
     travaVigente: (travado || silencio.vigente) && !bloqueado,
     motivo,
-    silencioAte: motivo === "resposta_humana_recente" ? silencio.ate : null,
+    silencioAte:
+      motivo === "resposta_humana_recente" || (motivo === "pausado" && silencio.ate !== null)
+        ? silencio.ate
+        : null,
   };
 }
 

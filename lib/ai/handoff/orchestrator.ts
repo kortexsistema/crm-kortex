@@ -33,6 +33,10 @@ import { decidirElegibilidadeDaConversaViaSupabase } from "@/lib/ai/elegibilidad
 import { ttlDaAutorizacaoMs } from "@/lib/ai/elegibilidade/gate";
 
 import { avisarLeadDoCrm } from "./aviso-ao-lead";
+import {
+  calcularExpiracaoDoHandoff,
+  resolveHandoffTimeoutMinutes,
+} from "./timeout";
 
 export type HandoffReason =
   | "requested_human"
@@ -164,16 +168,28 @@ export async function triggerHandoff(
             serviceBoundary: input.serviceBoundary,
           });
 
-    // Step 1 — flip conversation to pending + silence bot indefinitely.
-    // We use 'infinity' (Postgres timestamp special) so any later comparison
-    // `bot_silenced_until > now()` is always true. supabase-js sends as text
-    // and Postgres parses correctly for timestamptz columns.
+    // Step 1 — flip conversation to pending + silence bot temporarily with timeout (Regra 2).
+    // O operador humano é quem define silêncio permanente ("Assumir"). O handoff automático
+    // da IA usa timeout de inatividade configurável (padrão: 120 minutos).
+    const { data: orgData } = await admin
+      .from("organizations")
+      .select("settings")
+      .eq("id", input.organizationId)
+      .maybeSingle();
+
+    const isPermanent = input.metadata?.permanent === true;
+    const timeoutMinutes = resolveHandoffTimeoutMinutes(
+      (orgData?.settings as Record<string, unknown> | null) ?? null,
+    );
+    const expiresAt = calcularExpiracaoDoHandoff(timeoutMinutes);
+    const silenceUntil = isPermanent ? SILENCE_INFINITY : expiresAt.toISOString();
+
     await guard();
     const { error: updErr } = await admin
       .from("conversations")
       .update({
         status: "pending",
-        bot_silenced_until: SILENCE_INFINITY,
+        bot_silenced_until: silenceUntil,
         last_handoff_at: nowIso,
         last_handoff_reason: input.reason,
         status_changed_at: nowIso,
@@ -184,6 +200,9 @@ export async function triggerHandoff(
         active_agent_set_at: null,
         metadata: {
           ...(c.metadata ?? {}),
+          handoff_mode: isPermanent ? "manual_permanent" : "ai_temporary",
+          handoff_timeout_minutes: isPermanent ? null : timeoutMinutes,
+          handoff_expires_at: isPermanent ? null : silenceUntil,
           handoff_escalation_index: 0,
           handoff_escalation_at: nowIso,
         },
@@ -386,7 +405,7 @@ export async function triggerHandoff(
             .limit(1)
             .maybeSingle();
           if (msgs?.body) ultimaMensagem = msgs.body;
-        } catch (e) {
+        } catch {
           // ignora
         }
 

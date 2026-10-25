@@ -5,7 +5,6 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import { audit } from "@/lib/audit";
 import { tenantSchema, type TenantInput } from "@/lib/schemas/settings";
 import { loadAuthUser, resolveActiveOrg } from "@/lib/auth/server";
@@ -69,6 +68,7 @@ export async function updateTenant(input: TenantInput): Promise<UpdateTenantResu
     lost_reasons_extra: parsed.data.lost_reasons_extra,
     tts_enabled: parsed.data.tts_enabled,
     tts_voice: parsed.data.tts_voice,
+    ai_handoff_timeout_minutes: parsed.data.ai_handoff_timeout_minutes ?? 120,
   };
 
   const { error } = await supabase

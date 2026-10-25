@@ -223,6 +223,25 @@ export function TenantForm({ initial }: Props) {
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-2 rounded-lg border p-4 bg-muted/20">
+            <Label htmlFor="ai_handoff_timeout_minutes" className="font-medium">
+              {t("Timeout de inatividade após handoff da IA (minutos)")}
+            </Label>
+            <Input
+              id="ai_handoff_timeout_minutes"
+              type="number"
+              min={1}
+              max={10080}
+              value={form.ai_handoff_timeout_minutes ?? 120}
+              onChange={(e) => set("ai_handoff_timeout_minutes", Number(e.target.value) || 120)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "Quando a IA pausa o atendimento automaticamente, o sistema aguarda este período de inatividade. Se nenhum operador interagir nesse prazo, o bot reativa o modo automático de forma limpa. (Padrão: 120 minutos).",
+              )}
+            </p>
+          </div>
         </div>
 
         <div className="flex sm:justify-end">

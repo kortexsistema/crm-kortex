@@ -9,6 +9,7 @@
 
 import { decodificarCsv, parseCsv } from "@/lib/contacts/csv";
 import { parseExcel } from "@/lib/sheets/excel";
+import { converterLinhasEmTextoUniversal } from "@/lib/integrations/google-sheets/universal-converter";
 
 export class SpreadsheetExtractError extends Error {
   readonly code = "spreadsheet_extract_error";
@@ -52,28 +53,13 @@ export async function extractSpreadsheetText(
     );
   }
 
-  const items: string[] = [];
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i]!;
-    const numeroRegistro = i;
-    const partes: string[] = [];
+  const resultado = converterLinhasEmTextoUniversal(rows, {
+    titulo: "DOCUMENTO DE CONHECIMENTO",
+  });
 
-    for (let c = 0; c < Math.max(cabecalho.length, row.length); c++) {
-      const colNome = cabecalho[c]?.trim() || `Coluna ${c + 1}`;
-      const valor = row[c]?.trim();
-      if (valor && valor !== "") {
-        partes.push(`${colNome}: ${valor}`);
-      }
-    }
-
-    if (partes.length > 0) {
-      items.push(`Item ${numeroRegistro}:\n${partes.join(" | ")}`);
-    }
-  }
-
-  if (items.length === 0) {
+  if (!resultado.markdown || resultado.markdown.trim().length === 0) {
     throw new SpreadsheetExtractError("A planilha não possui dados legíveis para indexação.");
   }
 
-  return items.join("\n\n");
+  return resultado.markdown;
 }

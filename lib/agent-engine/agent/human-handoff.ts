@@ -32,8 +32,10 @@ import { cancelPendingCronsForLead } from '../cron/scheduler';
 import { findForbiddenKey, zodIssuesSummary } from './lead-state';
 import { renderDeclaracaoParaHumano, type DeclaracaoDoTurno } from './declaracao';
 
-/** Postgres `infinity`: o bot nunca reassume após handoff. */
-const SILENCE_INFINITY = 'infinity';
+import {
+  calcularExpiracaoDoHandoff,
+  resolveHandoffTimeoutMinutes,
+} from "@/lib/ai/handoff/timeout";
 
 /**
  * Normaliza para a detecção determinística: minúsculas + sem acento (NFD) — os padrões
@@ -144,8 +146,17 @@ export async function performHumanHandoff(
     ids.leadId,
   ]);
 
-  // (b) Conversa: silencia o bot para sempre e devolve à fila humana. O status SÓ
-  // transiciona 'ai_handling'→'pending' — conversa já claimed/closed/pending fica como
+  // Resolução do timeout configurável da organização (padrão: 120 minutos)
+  const { rows: orgRows } = await db.query<{ settings: Record<string, unknown> | null }>(
+    `select settings from organizations where id = $1`,
+    [ids.tenantId],
+  );
+  const timeoutMinutes = resolveHandoffTimeoutMinutes(orgRows[0]?.settings);
+  const silenceUntil = calcularExpiracaoDoHandoff(timeoutMinutes);
+  const silenceUntilIso = silenceUntil.toISOString();
+
+  // (b) Conversa: transiciona para 'pending' com silêncio temporário pelo timeout de inatividade (Regra 2).
+  // O status SÓ transiciona 'ai_handling'→'pending' — conversa já claimed/closed/pending fica como
   // está (nunca rouba do humano nem reabre encerrada). Fase 3: junto, zera a aderência
   // ao agente do router — se o bot for reativado, o router decide de novo (não reassume
   // o mesmo agente por inércia).
@@ -158,9 +169,14 @@ export async function performHumanHandoff(
             last_handoff_reason = $4,
             active_ai_agent_id = null,
             active_intent = null,
-            active_agent_set_at = null
+            active_agent_set_at = null,
+            metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
+              'handoff_mode', 'ai_temporary',
+              'handoff_timeout_minutes', $5::int,
+              'handoff_expires_at', $3::text
+            )
       where organization_id = $1 and id = $2`,
-    [ids.tenantId, ids.conversationId, SILENCE_INFINITY, opts.reason],
+    [ids.tenantId, ids.conversationId, silenceUntilIso, opts.reason, timeoutMinutes],
   );
 
   // (c) Cancela os crons PENDENTES do lead (follow-ups agendados — F3-01/02). Idempotente,

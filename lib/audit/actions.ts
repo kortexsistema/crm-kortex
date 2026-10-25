@@ -472,6 +472,10 @@ export const AUDIT_ACTIONS = [
   "vehicles.photos_uploaded",
   "vehicles.photo_deleted",
   "vehicles.photos_reordered",
+  "conversation.ai_auto_resumed",
+  "integrations.google_sheets.configured",
+  "integrations.google_sheets.synced",
+  "integrations.external_supabase.connected",
 ] as const;
 
 /** Um código de auditoria. Derivado de `AUDIT_ACTIONS` — não redigite a lista. */

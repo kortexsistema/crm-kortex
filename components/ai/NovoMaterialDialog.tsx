@@ -22,6 +22,9 @@ import { useT } from "@/hooks/i18n/useT";
  */
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { ExternalLink, FileSpreadsheet } from "lucide-react";
+import Link from "next/link";
+import { SpreadsheetToTextConverter } from "@/components/ai/SpreadsheetToTextConverter";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,7 +188,23 @@ export function NovoMaterialDialog({ aberto, onFechar, onCriado, podeIndexar }: 
             {porRotina && meta?.comoChega ? (
               <p className="text-xs text-text-muted">{t(meta.comoChega)}</p>
             ) : null}
+
+            <div className="flex items-center justify-between rounded-lg border border-border/80 bg-surface/50 p-2.5 text-xs text-text-muted">
+              <span className="flex items-center gap-1.5">
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                {t("Para sincronizar estoque e produtos por Planilha Google:")}
+              </span>
+              <Link
+                href="/app/settings/integrations"
+                className="font-medium text-accent hover:underline flex items-center gap-1 shrink-0 ml-2"
+                onClick={onFechar}
+              >
+                {t("Configurar integração")}
+                <ExternalLink className="h-3 w-3" />
+              </Link>
+            </div>
           </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="material-nome">{t("Nome do material")}</Label>
@@ -221,6 +240,18 @@ export function NovoMaterialDialog({ aberto, onFechar, onCriado, podeIndexar }: 
 
           {!porRotina && !arquivo ? (
             <div className="space-y-2">
+              {tipo === "documento" ? (
+                <SpreadsheetToTextConverter
+                  onConverted={(markdown, tituloSugerido) => {
+                    setConteudo(markdown);
+                    if (!nome.trim()) {
+                      setNome(tituloSugerido);
+                    }
+                  }}
+                  className="mb-3"
+                />
+              ) : null}
+
               <Label htmlFor="material-conteudo">
                 {aceitaArquivo(tipo) ? t("…ou cole o texto aqui") : t("Conteúdo")}
               </Label>

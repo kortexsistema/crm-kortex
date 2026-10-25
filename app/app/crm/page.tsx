@@ -37,6 +37,7 @@ export default async function CrmHubPage() {
         idioma,
       )}
       locale={idioma}
+      nicheId={activeOrg?.niche_id ?? null}
     />
   );
 }

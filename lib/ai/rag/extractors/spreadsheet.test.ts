@@ -16,10 +16,8 @@ describe("extractSpreadsheetText", () => {
     const buffer = Buffer.from(csvContent, "utf8");
     const text = await extractSpreadsheetText(buffer, "csv");
 
-    expect(text).toContain("Item 1:");
-    expect(text).toContain("Nome: Plano Pro | Preço: R$ 99/mês | Disponibilidade: Imediata");
-    expect(text).toContain("Item 2:");
-    expect(text).toContain("Nome: Plano Enterprise | Preço: Sob Consulta | Disponibilidade: Sob Consulta");
+    expect(text).toContain("Plano Pro: Preço: R$ 99/mês, Disponibilidade: Imediata.");
+    expect(text).toContain("Plano Enterprise: Preço: R$ Sob Consulta, Disponibilidade: Sob Consulta.");
   });
 
   it("extrai texto estruturado de um arquivo XLSX", async () => {
@@ -33,10 +31,8 @@ describe("extractSpreadsheetText", () => {
     const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
     const text = await extractSpreadsheetText(buffer, "xlsx");
 
-    expect(text).toContain("Item 1:");
-    expect(text).toContain("Serviço: Auditoria LGPD | Prazo: 15 dias | Responsável: Equipe Jurídica");
-    expect(text).toContain("Item 2:");
-    expect(text).toContain("Serviço: Consultoria RAG | Prazo: 7 dias | Responsável: Engenharia de IA");
+    expect(text).toContain("Auditoria LGPD: Prazo: 15 dias, Responsável: Equipe Jurídica.");
+    expect(text).toContain("Consultoria RAG: Prazo: 7 dias, Responsável: Engenharia de IA.");
   });
 
   it("rejeita planilha vazia lançando SpreadsheetExtractError", async () => {

@@ -109,16 +109,35 @@ export function sidebarGroups(
   isPlatformAdmin: boolean,
   role: Role | null,
   settings?: InterfaceSettings,
+  nicheId?: string | null,
 ): Array<{ group: NavGroup; items: NavDestination[] }> {
   const visible = new Set<string>(
     destinosDaInterface(settings, isPlatformAdmin, role).map((d) => d.href),
   );
-  return NAV_GROUPS.map((group) => ({
-    group,
-    items: NAV_DESTINATIONS.filter(
+  return NAV_GROUPS.map((group) => {
+    let items = NAV_DESTINATIONS.filter(
       (d) => d.group === group.id && (d.sidebar || (!group.hub && !!settings?.destinos)) && visible.has(d.href),
-    ),
-  })).filter(
+    );
+
+    // Ajuste contextual para o grupo CRM baseado no nicho de negócio
+    if (group.id === "crm") {
+      if (nicheId === "vehicles") {
+        const veiculos = NAV_DESTINATIONS.find((d) => d.href === "/app/vehicles");
+        // Oculta produtos e injeta veículos no sidebar
+        items = items.filter((d) => d.href !== "/app/products");
+        if (veiculos && visible.has(veiculos.href) && !items.some((d) => d.href === "/app/vehicles")) {
+          items.push(veiculos);
+        }
+      } else {
+        items = items.filter((d) => d.href !== "/app/vehicles");
+      }
+    }
+
+    return {
+      group,
+      items,
+    };
+  }).filter(
     (g) =>
       g.items.length > 0 ||
       (g.group.hub && NAV_DESTINATIONS.some((d) => d.group === g.group.id && visible.has(d.href))),
@@ -137,6 +156,7 @@ export function hubSections(
   isPlatformAdmin: boolean,
   role: Role | null,
   settings?: InterfaceSettings,
+  nicheId?: string | null,
 ): Array<{ section: string; items: NavDestination[] }> {
   const porSecao = new Map<string, NavDestination[]>();
   const visible = new Set<string>(
@@ -144,6 +164,10 @@ export function hubSections(
   );
   for (const d of NAV_DESTINATIONS) {
     if (d.group !== group || !visible.has(d.href)) continue;
+    if (group === "crm") {
+      if (nicheId === "vehicles" && d.href === "/app/products") continue;
+      if (nicheId === "ecommerce" && d.href === "/app/vehicles") continue;
+    }
     const secao = d.section ?? "";
     const atual = porSecao.get(secao);
     if (atual) atual.push(d);

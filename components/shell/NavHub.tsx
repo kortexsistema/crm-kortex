@@ -21,6 +21,7 @@ interface NavHubProps {
    * degrada para pt-BR, que é o comportamento de antes.
    */
   locale?: Idioma;
+  nicheId?: string | null;
 }
 
 /**
@@ -57,8 +58,9 @@ export function NavHub({
   subtitle,
   interfaceSettings,
   locale = IDIOMA_PADRAO,
+  nicheId,
 }: NavHubProps) {
-  const secoes = hubSections(group, isPlatformAdmin, role, interfaceSettings);
+  const secoes = hubSections(group, isPlatformAdmin, role, interfaceSettings, nicheId);
 
   return (
     <div className="flex h-full flex-col gap-8 p-6">

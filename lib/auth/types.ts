@@ -76,6 +76,10 @@ export interface UserOrgMembership {
    * para responder algo que a primeira já tinha em mãos.
    */
   locale?: string | null;
+  /**
+   * Nicho de negócio da organização ('ecommerce', 'vehicles').
+   */
+  niche_id?: string | null;
 }
 
 export interface AuthUser {

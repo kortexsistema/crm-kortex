@@ -19,7 +19,9 @@ export type MotivoDeAutorizacao =
   | `respondi:${string}`
   | `campanha:${string}`
   | `automacao:${string}`
-  | "retomada_manual";
+  | "retomada_manual"
+  | "retomada_timeout_inatividade";
+
 
 /**
  * Carimba `contacts.ai_authorized_at = now()` + `ai_authorized_reason`.

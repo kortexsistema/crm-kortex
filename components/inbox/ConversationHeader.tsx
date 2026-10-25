@@ -82,7 +82,7 @@ export function ConversationHeader({ conversation }: Props) {
    * leituras divergiram em primeiro lugar. A regra mora em `lib/inbox`,
    * espelhando os gates que o MOTOR lê, e esta tela só a consome.
    */
-  const { comando, automaticoAtivo, travaVigente, motivo } = comandoDaConversa({
+  const { comando, automaticoAtivo, travaVigente, motivo, silencioAte } = comandoDaConversa({
     status,
     assigned_to_user_id: conversation.assigned_to_user_id,
     assigned_to_user_name: conversation.assigned_to_user_name ?? null,
@@ -167,8 +167,18 @@ export function ConversationHeader({ conversation }: Props) {
               variant="outline"
               className="h-4 px-1.5 text-[10px]"
               data-testid="badge-atendimento-humano"
+              title={
+                motivo === "pausado" && silencioAte
+                  ? t(`Pausado até ${silencioAte.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}. Retorna automaticamente se nenhum humano responder.`)
+                  : undefined
+              }
             >
               {t(ROTULO_DO_MOTIVO[motivo])}
+              {motivo === "pausado" && silencioAte && (
+                <span className="ml-1 opacity-70 font-normal">
+                  ({silencioAte.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})
+                </span>
+              )}
             </Badge>
           )}
         </div>

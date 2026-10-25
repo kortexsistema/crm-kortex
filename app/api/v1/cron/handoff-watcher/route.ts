@@ -14,6 +14,7 @@ import { audit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { reativarAutomaticoPorTimeout } from "@/lib/ai/handoff/timeout";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,37 @@ async function handle(req: NextRequest): Promise<Response> {
   const admin = createAdminClient();
   const now = new Date();
   const nowIso = now.toISOString();
-  
+
+  // ─── 1. Reativação automática por timeout de inatividade (Regra 2) ───────────
+  // Busca conversas pausadas pela IA (status='pending', sem dono humano)
+  // cujo bot_silenced_until já expirou (passou dos 120min ou configurado na org).
+  let autoResumedCount = 0;
+  const { data: expiredConversations, error: expErr } = await admin
+    .from("conversations")
+    .select("id, organization_id, bot_silenced_until")
+    .eq("status", "pending")
+    .is("assigned_to_user_id", null)
+    .not("bot_silenced_until", "is", null)
+    .neq("bot_silenced_until", "infinity")
+    .lte("bot_silenced_until", nowIso)
+    .limit(SCAN_LIMIT);
+
+  if (expErr) {
+    logger.warn("[handoff-watcher] falha ao buscar conversas expiradas", { error: expErr.message });
+  } else if (expiredConversations && expiredConversations.length > 0) {
+    for (const exp of expiredConversations) {
+      const res = await reativarAutomaticoPorTimeout(admin, {
+        conversationId: exp.id,
+        organizationId: exp.organization_id,
+        motivo: "inactivity_timeout",
+      });
+      if (res.ok) {
+        autoResumedCount++;
+      }
+    }
+  }
+
+  // ─── 2. Escalonamento de alertas aos gestores da org ─────────────────────────
   // Limiar de tempo: tudo o que foi escalado antes desta data está atrasado.
   const timeoutThresholdIso = new Date(now.getTime() - ESCALATION_TIMEOUT_MS).toISOString();
 
@@ -165,17 +196,17 @@ async function handle(req: NextRequest): Promise<Response> {
     escalationsCount++;
   }
 
-  if (escalationsCount > 0) {
+  if (escalationsCount > 0 || autoResumedCount > 0) {
     void audit({
       action: "conversation.handoff_watcher_run",
       organizationId: null,
       bypassedRls: true,
-      metadata: { scanned: conversations.length, escalations: escalationsCount },
+      metadata: { scanned: conversations.length, auto_resumed: autoResumedCount, escalations: escalationsCount },
       requestId,
     });
   }
 
-  return ok({ scanned: conversations.length, escalations: escalationsCount }, { requestId });
+  return ok({ scanned: conversations.length, auto_resumed: autoResumedCount, escalations: escalationsCount }, { requestId });
 }
 
 export async function GET(req: NextRequest): Promise<Response> {

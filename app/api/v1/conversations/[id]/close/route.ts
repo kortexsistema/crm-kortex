@@ -55,6 +55,27 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     error.code === "40001" ? 409 : 500, { requestId });
   const conv = data as unknown as Conversation;
 
+  // Ao fechar a demanda/conversa, limpa o silêncio e travas manuais para que,
+  // em caso de novo contato no futuro, o atendimento automático esteja liberado.
+  const adminClient = createAdminClient();
+  await adminClient
+    .from("conversations")
+    .update({
+      bot_silenced_until: null,
+      last_handoff_at: null,
+      last_handoff_reason: null,
+    })
+    .eq("id", id)
+    .eq("organization_id", authz.org.orgId);
+
+  if (conv.contact_id) {
+    await adminClient
+      .from("contacts")
+      .update({ force_human: false })
+      .eq("id", conv.contact_id)
+      .eq("organization_id", authz.org.orgId);
+  }
+
   await audit({
     action: "conversation.closed",
     actorUserId: user.id,

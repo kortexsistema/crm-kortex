@@ -7,6 +7,7 @@ import { moedaServidaOu } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import { ZonaDePerigoDaOrganizacao } from "./_danger-zone";
 import { TenantForm } from "./_form";
+import { TenantNicheSettingsCard } from "./_niche-card";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ interface OrgRow {
   dpo_email: string | null;
   privacy_policy_url: string | null;
   settings: Record<string, unknown> | null;
+  niche_id?: string | null;
 }
 
 export default async function TenantSettingsPage() {
@@ -35,7 +37,7 @@ export default async function TenantSettingsPage() {
   const { data } = await supabase
     .from("organizations")
     .select(
-      "display_name, legal_name, cnpj, timezone, locale, currency, media_retention_days, dpo_email, privacy_policy_url, settings",
+      "display_name, legal_name, cnpj, timezone, locale, currency, media_retention_days, dpo_email, privacy_policy_url, settings, niche_id",
     )
     .eq("id", activeOrg.orgId)
     .maybeSingle();
@@ -47,6 +49,7 @@ export default async function TenantSettingsPage() {
       : []) as string[];
   const ttsEnabled = (row?.settings as { tts_enabled?: boolean })?.tts_enabled ?? false;
   const ttsVoice = (row?.settings as { tts_voice?: "nova" | "shimmer" | "alloy" | "echo" | "onyx" | "fable" })?.tts_voice ?? "nova";
+  const handoffTimeoutMinutes = (row?.settings as { ai_handoff_timeout_minutes?: number })?.ai_handoff_timeout_minutes ?? 120;
   const idioma = user.idioma;
 
   return (
@@ -57,6 +60,9 @@ export default async function TenantSettingsPage() {
           {traduzir("Dados da empresa, retenção de mídia, DPO. Admin only.", idioma)}
         </p>
       </header>
+      {row && (
+        <TenantNicheSettingsCard currentNiche={row.niche_id ?? "ecommerce"} />
+      )}
       {row && (
         <TenantForm
           initial={{
@@ -74,6 +80,7 @@ export default async function TenantSettingsPage() {
             lost_reasons_extra: lostReasonsExtra,
             tts_enabled: ttsEnabled,
             tts_voice: ttsVoice,
+            ai_handoff_timeout_minutes: handoffTimeoutMinutes,
           }}
         />
       )}

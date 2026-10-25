@@ -12,6 +12,7 @@ import { testExternalSupabase } from "@/app/actions/integrations/testExternalSup
 import { getExternalSupabaseConfig } from "@/app/actions/integrations/getExternalSupabaseConfig";
 import { Badge } from "@/components/ui/badge";
 import { SupabaseTablesList } from "@/components/settings/SupabaseTablesList";
+import { GoogleSheetsStockCard } from "@/components/settings/GoogleSheetsStockCard";
 
 export default function IntegrationsSettingsPage() {
   const t = useT();
@@ -101,6 +102,9 @@ export default function IntegrationsSettingsPage() {
         </p>
       </div>
 
+      {/* Sincronização de Estoque e Produtos via Google Sheets */}
+      <GoogleSheetsStockCard />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t("Supabase Externo")}</CardTitle>
@@ -166,3 +170,4 @@ export default function IntegrationsSettingsPage() {
     </div>
   );
 }
+

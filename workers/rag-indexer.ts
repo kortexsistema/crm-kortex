@@ -45,6 +45,7 @@ import { canonizarTipoDeFonte } from "@/lib/ai/rag/tipos-de-fonte";
 import { extrairTextoDoArquivo, ErroDeExtracao } from "@/lib/ai/rag/ingest/documento";
 import { estimateTokens } from "@/lib/ai/runtime/history";
 import { formatProductForRag, type NuvemshopProduct } from "@/lib/ai/rag/format-product";
+import { formatCatalogProductForRag } from "@/lib/integrations/google-sheets/format-rag";
 import {
   createKnowledgeVersion,
   markVersionReady,
@@ -227,7 +228,7 @@ async function pedacosDeDocumento(fonte: FonteRow): Promise<Pedaco[]> {
   }));
 }
 
-/** Catálogo: os produtos já sincronizados desta organização. */
+/** Catálogo: os produtos já sincronizados desta organização (Nuvemshop ou catalog_products/Google Sheets). */
 async function pedacosDeCatalogo(fonte: FonteRow, productId?: string): Promise<Pedaco[]> {
   const produtos = productId
     ? [await buscarProdutoNaLoja(fonte.organization_id, productId)].filter(
@@ -244,8 +245,33 @@ async function pedacosDeCatalogo(fonte: FonteRow, productId?: string): Promise<P
       });
     }
   }
+
+  // Se não foi um produto pontual da Nuvemshop, lê também os produtos do catálogo próprio
+  if (!productId) {
+    const admin = createAdminClient();
+    const { data: dbProducts } = await admin
+      .from("catalog_products")
+      .select("codigo, nome, preco_cents, custo_cents, marca, categoria, quantidade, controla_estoque, moeda")
+      .eq("organization_id", fonte.organization_id)
+      .eq("ativo", true)
+      .limit(500);
+
+    if (dbProducts && dbProducts.length > 0) {
+      for (const p of dbProducts) {
+        const text = formatCatalogProductForRag(p);
+        for (const c of chunkText(text)) {
+          pedacos.push({
+            content: c,
+            metadata: { source_type: "catalogo", codigo: p.codigo },
+          });
+        }
+      }
+    }
+  }
+
   return pedacos;
 }
+
 
 async function buscarProdutoNaLoja(
   organizationId: string,

@@ -31,6 +31,7 @@ interface RawMembershipRow {
 interface OrgJoin {
   display_name: string;
   locale: string | null;
+  niche_id?: string | null;
 }
 
 /**
@@ -179,7 +180,7 @@ export async function loadAuthUser(): Promise<AuthUser | null> {
   const { data: rawMemberships, error: membErro } = await supabase
     .from("user_organizations")
     .select(
-      "organization_id, role, interface_settings, accepted_at, organizations(display_name, locale)",
+      "organization_id, role, interface_settings, accepted_at, organizations(display_name, locale, niche_id)",
     )
     .eq("user_id", user.id)
     .is("revoked_at", null)
@@ -228,6 +229,7 @@ export async function loadAuthUser(): Promise<AuthUser | null> {
       role: row.role as Role,
       interface_settings: lerInterface(row.interface_settings).settings,
       locale: org?.locale ?? null,
+      niche_id: org?.niche_id ?? "ecommerce",
     };
   });
 
@@ -273,6 +275,7 @@ export async function resolveActiveOrg(authUser: AuthUser): Promise<ActiveOrg | 
       orgId: authUser.support.organization_id,
       name: authUser.support.name,
       role: authUser.support.access_mode === "full" ? "admin" : "viewer",
+      niche_id: "ecommerce",
     };
   }
   const store = await cookies();
@@ -283,6 +286,7 @@ export async function resolveActiveOrg(authUser: AuthUser): Promise<ActiveOrg | 
     name: ativo.organization_name,
     role: ativo.role,
     interface_settings: ativo.interface_settings,
+    niche_id: ativo.niche_id ?? "ecommerce",
   };
 }
 
