@@ -22,11 +22,28 @@ import { precoParaCentavos } from "@/lib/schemas/produtos";
 
 /** Como cada coluna pode vir escrita. A primeira forma é a que a gente sugere. */
 const COLUNAS: Record<string, readonly string[]> = {
-  codigo: ["codigo", "código", "sku", "ref", "referencia", "referência", "cod"],
-  nome: ["nome", "produto", "descricao", "descrição", "titulo", "título", "item"],
+  codigo: ["codigo", "código", "sku", "ref", "referencia", "referência", "cod", "placa", "chassi", "id"],
+  nome: [
+    "nome",
+    "produto",
+    "descricao",
+    "descrição",
+    "titulo",
+    "título",
+    "item",
+    "modelo",
+    "veiculo",
+    "veículo",
+    "carro",
+    "moto",
+    "versao",
+    "versão",
+    "automovel",
+    "automóvel",
+  ],
   preco: ["preco", "preço", "valor", "preco de venda", "preço de venda", "venda"],
   custo: ["custo", "preco de custo", "preço de custo", "compra"],
-  marca: ["marca", "fabricante"],
+  marca: ["marca", "fabricante", "montadora", "make"],
   categoria: ["categoria", "tipo", "departamento"],
   quantidade: ["quantidade", "estoque", "qtd", "qtde", "qty"],
 };

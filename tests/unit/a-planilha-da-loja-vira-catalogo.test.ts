@@ -153,3 +153,27 @@ describe("aceita matriz de linhas (string[][]) diretamente de planilhas Excel", 
   });
 });
 
+describe("aceita vocabulário automotivo e de veículos", () => {
+  it("mapeia Modelo para nome, Placa para codigo e Montadora para marca", () => {
+    const r = lerPlanilha(
+      planilha(
+        "Montadora;Modelo;Placa;Preço",
+        "Honda;Civic LX 2.0;ABC1D23;R$ 89.900,00",
+        "Toyota;Corolla XEi;XYZ9A88;115.000",
+      ),
+    );
+
+    expect("erro" in r).toBe(false);
+    if ("erro" in r) return;
+    expect(r.produtos).toHaveLength(2);
+    expect(r.produtos[0]?.nome).toBe("Civic LX 2.0");
+    expect(r.produtos[0]?.codigo).toBe("ABC1D23");
+    expect(r.produtos[0]?.marca).toBe("Honda");
+    expect(r.produtos[0]?.preco_cents).toBe(8990000);
+    expect(r.produtos[1]?.nome).toBe("Corolla XEi");
+    expect(r.produtos[1]?.codigo).toBe("XYZ9A88");
+    expect(r.produtos[1]?.marca).toBe("Toyota");
+    expect(r.produtos[1]?.preco_cents).toBe(11500000);
+  });
+});
+

@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import { normalizeGoogleSheetsUrl } from "@/lib/integrations/google-sheets/url";
 import { formatCatalogProductForRag } from "@/lib/integrations/google-sheets/format-rag";
 import { lerPlanilha } from "@/lib/catalogo/planilha";
+import {
+  isSerializationOrConcurrencyError,
+  upsertLoteComRetry,
+} from "@/lib/integrations/google-sheets/sync";
 
 describe("Google Sheets Stock Sync — URL Normalization", () => {
   it("converte link padrão do navegador (/edit#gid=0) para URL de exportação CSV", () => {
@@ -165,11 +169,7 @@ describe("Google Sheets Stock Sync — Planilha Parsing & Delta Compatibility", 
 });
 
 describe("Google Sheets Stock Sync — Concorrência, Retry e Tratamento de Erro 40001", () => {
-  it("detecta corretamente erros de serialização 40001 e concorrência", async () => {
-    const { isSerializationOrConcurrencyError } = await import(
-      "@/lib/integrations/google-sheets/sync"
-    );
-
+  it("detecta corretamente erros de serialização 40001 e concorrência", () => {
     // Erros com código 40001 e 40P01
     expect(isSerializationOrConcurrencyError({ code: "40001", message: "serialization failure" })).toBe(true);
     expect(isSerializationOrConcurrencyError({ code: "40P01", message: "deadlock detected" })).toBe(true);
@@ -191,8 +191,6 @@ describe("Google Sheets Stock Sync — Concorrência, Retry e Tratamento de Erro
   });
 
   it("upsertLoteComRetry retenta após erro 40001 e tem sucesso quando a tentativa seguinte passa", async () => {
-    const { upsertLoteComRetry } = await import("@/lib/integrations/google-sheets/sync");
-
     let tentativas = 0;
     const adminMock = {
       from: () => ({

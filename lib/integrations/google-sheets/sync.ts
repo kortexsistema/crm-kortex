@@ -199,113 +199,106 @@ export async function syncGoogleSheetsStock(
       return { ok: false, error: msg };
     }
 
-    // 3. Processa e valida as linhas da planilha
-    const lido = lerPlanilha(csvText);
-    if ("erro" in lido) {
-      await registrarErroDeSincronizacao(admin, organizationId, integration.id, meta, lido.erro);
-      return { ok: false, error: lido.erro };
-    }
-
-    const totalLinhas = lido.produtos.length;
-    const moeda = await moedaDaOrganizacao(admin, organizationId);
-    const codigos = lido.produtos.map((p) => p.codigo);
-
-    // 4. Identifica produtos existentes para calcular novos vs atualizados
-    let existentes = new Set<string>();
-    if (codigos.length > 0) {
-      const { data: jaCadastrados } = await admin
-        .from("catalog_products")
-        .select("codigo")
-        .eq("organization_id", organizationId)
-        .in("codigo", codigos);
-
-      existentes = new Set((jaCadastrados ?? []).map((r) => (r as { codigo: string }).codigo));
-    }
-
-    const errosDeGravacao: ErroDaLinha[] = [...lido.erros];
-    let criadosCount = 0;
-    let atualizadosCount = 0;
-
-    // 5. Prepara os registros para gravação em lote no catálogo
-    const paraGravar = lido.produtos.map((p) => {
-      const jaExiste = existentes.has(p.codigo);
-      return {
-        organization_id: organizationId,
-        codigo: p.codigo,
-        nome: p.nome,
-        preco_cents: p.preco_cents,
-        custo_cents: p.custo_cents,
-        marca: p.marca ?? null,
-        categoria: p.categoria ?? null,
-        quantidade: p.quantidade,
-        controla_estoque: p.controla_estoque,
-        origem: "google_sheets",
-        ativo: true,
-        ...(jaExiste ? {} : { moeda }),
-      };
-    });
-
-    // Executa os upserts em lotes com throttling e retry exponencial para 40001
-    for (let i = 0; i < paraGravar.length; i += LOTE_UPSERT) {
-      const lote = paraGravar.slice(i, i + LOTE_UPSERT);
-      const resultadoLote = await upsertLoteComRetry(admin, lote);
-
-      if (resultadoLote.ok) {
-        for (const item of lote) {
-          if (existentes.has(item.codigo)) atualizadosCount++;
-          else criadosCount++;
-        }
-      } else if (resultadoLote.isSerialization) {
-        // Falha 40001 / serialização persistiu: aborta o lote sem disparar rajada catastrófica linha a linha
-        const msg =
-          resultadoLote.error instanceof Error
-            ? resultadoLote.error.message
-            : typeof resultadoLote.error === "object" &&
-                resultadoLote.error !== null &&
-                "message" in resultadoLote.error
-              ? String((resultadoLote.error as { message: unknown }).message)
-              : "Falha de serialização / concorrência no PostgreSQL (40001)";
-
-        errosDeGravacao.push({
-          linha: 0,
-          motivo: `Lote de produtos (${lote.length} itens) abortado por concorrência/serialização: ${msg}`,
-        });
-      } else {
-        // Falha não-concorrente (erro de validação ou dados específicos): tenta isolar linha a linha
-        for (const item of lote) {
-          const { error: singleErr } = await admin
-            .from("catalog_products")
-            .upsert([item], { onConflict: "organization_id,codigo" });
-
-          if (singleErr) {
-            errosDeGravacao.push({
-              linha: 0,
-              motivo: `Produto "${item.nome}" (${item.codigo}): ${singleErr.message}`,
-            });
-          } else {
-            if (existentes.has(item.codigo)) atualizadosCount++;
-            else criadosCount++;
-          }
-        }
-      }
-
-      // Intervalo de throttling entre lotes para despressurizar o banco de dados
-      if (i + LOTE_UPSERT < paraGravar.length) {
-        await sleep(BATCH_THROTTLE_MS);
-      }
-    }
-
-    // 6. Atualiza ou garante a fonte de conhecimento no RAG
+    // 3. Atualiza ou garante a fonte de conhecimento no RAG (Prioridade 1: Agente de IA)
     const nowIso = new Date().toISOString();
-    await garantirEAtualizarFonteDeConhecimento(admin, organizationId, {
+    const infoConhecimento = await garantirEAtualizarFonteDeConhecimento(admin, organizationId, {
       sheetUrl: rawUrl,
-      totalProdutos: totalLinhas,
       nowIso,
       csvText,
       integrationId: integration.id,
     });
 
-    // 7. Salva o status de sucesso na integração
+    // 4. Processa produtos no catálogo relacional (Prioridade 2: Best-effort, não bloqueia o RAG)
+    const lido = lerPlanilha(csvText);
+    const errosDeGravacao: ErroDaLinha[] = [];
+    let criadosCount = 0;
+    let atualizadosCount = 0;
+
+    if (!("erro" in lido) && lido.produtos.length > 0) {
+      const moeda = await moedaDaOrganizacao(admin, organizationId);
+      const codigos = lido.produtos.map((p) => p.codigo);
+
+      let existentes = new Set<string>();
+      if (codigos.length > 0) {
+        const { data: jaCadastrados } = await admin
+          .from("catalog_products")
+          .select("codigo")
+          .eq("organization_id", organizationId)
+          .in("codigo", codigos);
+
+        existentes = new Set((jaCadastrados ?? []).map((r) => (r as { codigo: string }).codigo));
+      }
+
+      errosDeGravacao.push(...lido.erros);
+
+      const paraGravar = lido.produtos.map((p) => {
+        const jaExiste = existentes.has(p.codigo);
+        return {
+          organization_id: organizationId,
+          codigo: p.codigo,
+          nome: p.nome,
+          preco_cents: p.preco_cents,
+          custo_cents: p.custo_cents,
+          marca: p.marca ?? null,
+          categoria: p.categoria ?? null,
+          quantidade: p.quantidade,
+          controla_estoque: p.controla_estoque,
+          origem: "google_sheets",
+          ativo: true,
+          ...(jaExiste ? {} : { moeda }),
+        };
+      });
+
+      for (let i = 0; i < paraGravar.length; i += LOTE_UPSERT) {
+        const lote = paraGravar.slice(i, i + LOTE_UPSERT);
+        const resultadoLote = await upsertLoteComRetry(admin, lote);
+
+        if (resultadoLote.ok) {
+          for (const item of lote) {
+            if (existentes.has(item.codigo)) atualizadosCount++;
+            else criadosCount++;
+          }
+        } else if (resultadoLote.isSerialization) {
+          const msg =
+            resultadoLote.error instanceof Error
+              ? resultadoLote.error.message
+              : typeof resultadoLote.error === "object" &&
+                  resultadoLote.error !== null &&
+                  "message" in resultadoLote.error
+                ? String((resultadoLote.error as { message: unknown }).message)
+                : "Falha de serialização / concorrência no PostgreSQL (40001)";
+
+          errosDeGravacao.push({
+            linha: 0,
+            motivo: `Lote de produtos (${lote.length} itens) abortado por concorrência/serialização: ${msg}`,
+          });
+        } else {
+          for (const item of lote) {
+            const { error: singleErr } = await admin
+              .from("catalog_products")
+              .upsert([item], { onConflict: "organization_id,codigo" });
+
+            if (singleErr) {
+              errosDeGravacao.push({
+                linha: 0,
+                motivo: `Produto "${item.nome}" (${item.codigo}): ${singleErr.message}`,
+              });
+            } else {
+              if (existentes.has(item.codigo)) atualizadosCount++;
+              else criadosCount++;
+            }
+          }
+        }
+
+        if (i + LOTE_UPSERT < paraGravar.length) {
+          await sleep(BATCH_THROTTLE_MS);
+        }
+      }
+    }
+
+    const totalLinhas = infoConhecimento.totalLinhas || (("erro" in lido) ? 0 : lido.produtos.length);
+
+    // 5. Salva o status de sucesso na integração
     const metadataAtualizada: GoogleSheetsStoreMetadata = {
       ...meta,
       last_sync_status: "success",
@@ -324,7 +317,7 @@ export async function syncGoogleSheetsStock(
       })
       .eq("id", integration.id);
 
-    // 8. Registra evento de auditoria
+    // 6. Registra evento de auditoria
     await audit({
       organizationId,
       action: "integrations.google_sheets.synced",
@@ -346,7 +339,7 @@ export async function syncGoogleSheetsStock(
         criados: criadosCount,
         atualizados: atualizadosCount,
         erros: errosDeGravacao,
-        colunas_ignoradas: lido.colunasIgnoradas,
+        colunas_ignoradas: "erro" in lido ? [] : lido.colunasIgnoradas,
       },
     };
   } finally {
@@ -407,12 +400,12 @@ async function garantirEAtualizarFonteDeConhecimento(
   organizationId: string,
   dados: {
     sheetUrl: string;
-    totalProdutos: number;
+    totalProdutos?: number;
     nowIso: string;
     csvText: string;
     integrationId: string;
   },
-): Promise<void> {
+): Promise<{ totalLinhas: number }> {
   // 1. Gera o documento de texto universal formatado
   const universal = converterLinhasEmTextoUniversal(dados.csvText, {
     titulo: "BASE DE CONHECIMENTO - ESTOQUE",
@@ -544,5 +537,7 @@ async function garantirEAtualizarFonteDeConhecimento(
       p_organization_id: organizationId,
     } as never);
   }
+
+  return { totalLinhas: universal.totalLinhas };
 }
 
