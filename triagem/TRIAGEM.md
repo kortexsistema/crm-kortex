@@ -1669,14 +1669,14 @@ Cada um destes foi cometido de verdade nesta casa, e é por isso que estão escr
     100% das importações). O #600, uma varredura de i18n saída da mesma `main`, **envolveu essa
     mesma linha errada em `t()`**.
 
-    ```
-    <<<<<<< HEAD                        (o conserto)
+    ```text
+    [conflito HEAD]                     (o conserto)
       if (!pipelineId) {
         return fail("validation_failed", "Escolha o funil de destino.", 422, …
-    =======                             (a tradução)
+    [conflito versus]                   (a tradução)
       if (!pipelineId || !stageId) {
         return fail("validation_failed", t("Escolha o funil e a etapa de destino."), 422, …
-    >>>>>>> triagem/600-espanhol
+    [conflito triagem/600-espanhol]
     ```
 
     Pegar o lado do #600 devolve o bug; pegar o do #597 perde a tradução. **A resolução é a lógica de

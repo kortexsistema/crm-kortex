@@ -40,6 +40,7 @@ interface ItemDaFaq {
 interface Props {
   sourceId: string;
   nome: string;
+  tipo?: string;
   aberto: boolean;
   onFechar: () => void;
   onSalvo: () => void;
@@ -49,21 +50,48 @@ function paraMarkdown(itens: ItemDaFaq[]): string {
   return itens.map((i) => `## Pergunta: ${i.question}\n## Resposta: ${i.answer}`).join("\n\n");
 }
 
-export function EditarFaqDialog({ sourceId, nome, aberto, onFechar, onSalvo }: Props) {
+export function EditarFaqDialog({ sourceId, nome, tipo, aberto, onFechar, onSalvo }: Props) {
   const t = useT();
   const [texto, setTexto] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [sourceTipo, setSourceTipo] = useState<string>(tipo ?? "faq");
+
+  const isDoc = (tipo ?? sourceTipo) === "documento";
 
   useEffect(() => {
     if (!aberto) return;
     let vivo = true;
-    setCarregando(true);
+    queueMicrotask(() => {
+      if (vivo) setCarregando(true);
+    });
     apiClient
-      .get<{ data: { items: ItemDaFaq[] } }>(`/api/v1/ai/knowledge/sources/${sourceId}`)
-      .then((res) => {
+      .get<{ data: { items?: ItemDaFaq[]; content?: string; source_type?: string } }>(
+        `/api/v1/ai/knowledge/sources/${sourceId}`,
+      )
+      .then(async (res) => {
         if (!vivo) return;
-        setTexto(paraMarkdown(res.data.items ?? []));
+        const d = res.data;
+        if (d.source_type) setSourceTipo(d.source_type);
+        const resolvedTipo = tipo ?? d.source_type ?? "faq";
+
+        if (d.content && d.content.trim().length > 0) {
+          setTexto(d.content);
+        } else if (d.items && d.items.length > 0) {
+          setTexto(paraMarkdown(d.items));
+        } else if (resolvedTipo === "documento") {
+          // Fallback para os trechos indexados já existentes para visualização
+          try {
+            const trechosRes = await apiClient.get<{
+              data: { trechos: Array<{ content: string }> };
+            }>(`/api/v1/ai/knowledge/sources/${sourceId}/trechos`);
+            if (vivo && trechosRes.data?.trechos && trechosRes.data.trechos.length > 0) {
+              setTexto(trechosRes.data.trechos.map((tr) => tr.content).join("\n\n"));
+            }
+          } catch {
+            // best-effort
+          }
+        }
       })
       .catch((err) => {
         if (vivo) showApiError(err);
@@ -74,14 +102,31 @@ export function EditarFaqDialog({ sourceId, nome, aberto, onFechar, onSalvo }: P
     return () => {
       vivo = false;
     };
-  }, [aberto, sourceId]);
+  }, [aberto, sourceId, tipo]);
 
   async function salvar(): Promise<void> {
+    if (isDoc) {
+      const conteudoDoc = texto.trim();
+      if (!conteudoDoc) {
+        toast.error(t("O conteúdo do documento não pode ficar vazio."));
+        return;
+      }
+      setSalvando(true);
+      try {
+        await apiClient.patch(`/api/v1/ai/knowledge/sources/${sourceId}`, { content: conteudoDoc });
+        toast.success(t("Conteúdo salvo. Estou preparando de novo — leva alguns instantes."));
+        onSalvo();
+        onFechar();
+      } catch (err) {
+        showApiError(err);
+      } finally {
+        setSalvando(false);
+      }
+      return;
+    }
+
     const itens = parseFaqMarkdown(texto);
     if (itens.length === 0) {
-      // `## Pergunta:`/`## Resposta:` NÃO entram na tradução: são os marcadores
-      // que `lib/ai/rag/ingest/faq.ts` casa por regex de língua fixa. Traduzi-los
-      // faria a instrução ensinar um formato que o parser recusa.
       toast.error(
         t("Não achei nenhum par pergunta/resposta. Use uma linha") +
           " ## Pergunta: " +
@@ -129,8 +174,14 @@ export function EditarFaqDialog({ sourceId, nome, aberto, onFechar, onSalvo }: P
             disabled={carregando || salvando}
           />
           <p className="text-xs text-text-muted">
-            {t("Uma linha")} <code>## Pergunta:</code> {t("e uma")} <code>## Resposta:</code>{" "}
-            {t("por item, separados por uma linha em branco.")}
+            {isDoc ? (
+              t("Texto do documento (Markdown ou texto puro).")
+            ) : (
+              <>
+                {t("Uma linha")} <code>## Pergunta:</code> {t("e uma")} <code>## Resposta:</code>{" "}
+                {t("por item, separados por uma linha em branco.")}
+              </>
+            )}
           </p>
         </div>
 

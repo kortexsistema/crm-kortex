@@ -90,6 +90,15 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     requestId,
   });
 
+  // Trava explícita de controle manual: operador assumiu a conversa
+  if (conv.contact_id) {
+    await supabase
+      .from("contacts")
+      .update({ force_human: true })
+      .eq("id", conv.contact_id)
+      .eq("organization_id", conv.organization_id);
+  }
+
   await supabase
     .rpc("emit_event", {
       p_event_type: "conversation.claimed",

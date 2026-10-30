@@ -137,14 +137,18 @@ export async function performHumanHandoff(
      */
     avisoAoLead?: { avisado: boolean; porque?: string };
     log: Logger;
+    forceHuman?: boolean;
   },
 ): Promise<void> {
-  // (a) FONTE DA VERDADE: force_human no contato — irrevogável pelo agente (regra dura 2).
-  await guardServiceEffect();
-  await db.query(`update contacts set force_human = true where organization_id = $1 and id = $2`, [
-    ids.tenantId,
-    ids.leadId,
-  ]);
+  // (a) Trava manual do contato: apenas se solicitado explicitamente (ex: operador assumir ou orçamento esgotado).
+  // No handoff automático padrão da IA, o silêncio é temporário com timeout configurado na conversa.
+  if (opts.forceHuman === true) {
+    await guardServiceEffect();
+    await db.query(`update contacts set force_human = true where organization_id = $1 and id = $2`, [
+      ids.tenantId,
+      ids.leadId,
+    ]);
+  }
 
   // Resolução do timeout configurável da organização (padrão: 120 minutos)
   const { rows: orgRows } = await db.query<{ settings: Record<string, unknown> | null }>(

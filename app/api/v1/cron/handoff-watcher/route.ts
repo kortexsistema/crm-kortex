@@ -43,23 +43,52 @@ async function handle(req: NextRequest): Promise<Response> {
   const nowIso = now.toISOString();
 
   // ─── 1. Reativação automática por timeout de inatividade (Regra 2) ───────────
-  // Busca conversas pausadas pela IA (status='pending', sem dono humano)
-  // cujo bot_silenced_until já expirou (passou dos 120min ou configurado na org).
+  // Busca conversas pausadas pela IA (status='pending' ou 'open', sem dono humano)
+  // cujo bot_silenced_until já expirou (passou dos 120min ou configurado na org),
+  // bem como casos legados onde last_handoff_at passou de 120min sem travamento manual ('infinity').
   let autoResumedCount = 0;
+  const legacyCutoffIso = new Date(now.getTime() - 120 * 60 * 1000).toISOString();
+
+  // (a) Conversas com bot_silenced_until expirado (não-infinito)
   const { data: expiredConversations, error: expErr } = await admin
     .from("conversations")
-    .select("id, organization_id, bot_silenced_until")
-    .eq("status", "pending")
+    .select("id, organization_id, bot_silenced_until, last_handoff_at")
+    .in("status", ["pending", "open"])
     .is("assigned_to_user_id", null)
     .not("bot_silenced_until", "is", null)
     .neq("bot_silenced_until", "infinity")
     .lte("bot_silenced_until", nowIso)
     .limit(SCAN_LIMIT);
 
+  // (b) Casos legados sem bot_silenced_until (ou nulo) onde last_handoff_at excedeu 120 minutos
+  const { data: legacyStaleConversations, error: legErr } = await admin
+    .from("conversations")
+    .select("id, organization_id, bot_silenced_until, last_handoff_at")
+    .in("status", ["pending", "open"])
+    .is("assigned_to_user_id", null)
+    .is("bot_silenced_until", null)
+    .not("last_handoff_at", "is", null)
+    .lte("last_handoff_at", legacyCutoffIso)
+    .limit(SCAN_LIMIT);
+
   if (expErr) {
     logger.warn("[handoff-watcher] falha ao buscar conversas expiradas", { error: expErr.message });
-  } else if (expiredConversations && expiredConversations.length > 0) {
-    for (const exp of expiredConversations) {
+  }
+  if (legErr) {
+    logger.warn("[handoff-watcher] falha ao buscar conversas legadas expiradas", { error: legErr.message });
+  }
+
+  // Deduplicar conversas para reativação
+  const candidateMap = new Map<string, { id: string; organization_id: string }>();
+  for (const c of expiredConversations ?? []) {
+    candidateMap.set(c.id, { id: c.id, organization_id: c.organization_id });
+  }
+  for (const c of legacyStaleConversations ?? []) {
+    candidateMap.set(c.id, { id: c.id, organization_id: c.organization_id });
+  }
+
+  if (candidateMap.size > 0) {
+    for (const exp of candidateMap.values()) {
       const res = await reativarAutomaticoPorTimeout(admin, {
         conversationId: exp.id,
         organizationId: exp.organization_id,

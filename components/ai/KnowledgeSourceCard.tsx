@@ -282,6 +282,7 @@ export function KnowledgeSourceCard({
               <EditarFaqDialog
                 sourceId={source.id}
                 nome={source.name}
+                tipo={tipo}
                 aberto
                 onFechar={() => setEditando(false)}
                 onSalvo={onMudou}

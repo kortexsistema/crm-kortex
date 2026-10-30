@@ -623,6 +623,7 @@ export async function comHandoffSeOrcamentoAcabar<T>(
         inboxTitle: TITULO_DO_HANDOFF_POR_ORCAMENTO,
         avisoAoLead: aviso,
         log: ctx.log,
+        forceHuman: true,
       },
     );
     ctx.log.warn('turno interrompido pelo teto de gasto — conversa devolvida à fila humana', {

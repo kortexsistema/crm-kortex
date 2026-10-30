@@ -15,6 +15,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { aceitaTextoColado, canonizarTipoDeFonte } from "@/lib/ai/rag/tipos-de-fonte";
+import { extrairTextoDoArquivo, BUCKET_DE_CONHECIMENTO } from "@/lib/ai/rag/ingest/documento";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ const faqItemSchema = z.object({
 const patchSourceSchema = z.object({
   name: z.string().min(2).max(120).optional(),
   items: z.array(faqItemSchema).optional(),
+  content: z.string().optional(),
   source_metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -84,6 +86,49 @@ export async function GET(
     return fail("not_found", "Material não encontrado.", 404, { requestId });
   }
 
+  type FonteRow = {
+    source_type: string;
+    source_metadata?: Record<string, unknown> | null;
+    active_kb_version_id?: string | null;
+  };
+  const fRow = fonte as unknown as FonteRow;
+  const tipo = canonizarTipoDeFonte(fRow.source_type);
+  let content = "";
+
+  if (tipo === "documento") {
+    const meta = (fRow.source_metadata ?? {}) as {
+      blob_path?: string;
+      ext?: string;
+    };
+    if (meta.blob_path) {
+      try {
+        const extraido = await extrairTextoDoArquivo(meta.blob_path, meta.ext);
+        content = extraido.texto;
+      } catch {
+        // Fallback para trechos se arquivo no bucket não puder ser lido
+      }
+    }
+
+    if (!content) {
+      const versaoAtiva = fRow.active_kb_version_id;
+      let query = supabase
+        .from("ai_chunks")
+        .select("content, position")
+        .eq("organization_id", activeOrg.orgId)
+        .eq("knowledge_source_id", sourceId)
+        .order("position", { ascending: true })
+        .limit(200);
+
+      if (versaoAtiva) {
+        query = query.eq("kb_version_id", versaoAtiva);
+      }
+      const { data: trechos } = await query;
+      if (trechos && trechos.length > 0) {
+        content = trechos.map((t) => (t as { content: string }).content).join("\n\n");
+      }
+    }
+  }
+
   const { data: itens } = await supabase
     .from("ai_faq_items")
     .select("question, answer, tags, locale, position")
@@ -91,7 +136,18 @@ export async function GET(
     .eq("knowledge_source_id", sourceId)
     .order("position", { ascending: true });
 
-  return ok({ ...(fonte as unknown as Record<string, unknown>), items: itens ?? [] }, { requestId });
+  if (tipo === "faq" && itens && itens.length > 0) {
+    content = itens.map((i) => `## Pergunta: ${i.question}\n## Resposta: ${i.answer}`).join("\n\n");
+  }
+
+  return ok(
+    {
+      ...(fonte as unknown as Record<string, unknown>),
+      items: itens ?? [],
+      content,
+    },
+    { requestId },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +190,7 @@ export async function PATCH(
   const supabase = await createClient();
   const { data: existing, error: fetchErr } = await supabase
     .from("ai_knowledge_sources")
-    .select("id, source_type, agent_id")
+    .select("id, source_type, agent_id, source_metadata")
     .eq("id", sourceId)
     .eq("organization_id", activeOrg.orgId)
     .maybeSingle();
@@ -147,7 +203,12 @@ export async function PATCH(
     return fail("not_found", "Fonte de conhecimento não encontrada.", 404, { requestId });
   }
 
-  const ksRow = existing as { id: string; source_type: string; agent_id: string | null };
+  const ksRow = existing as {
+    id: string;
+    source_type: string;
+    agent_id: string | null;
+    source_metadata: Record<string, unknown> | null;
+  };
   const tipo = canonizarTipoDeFonte(ksRow.source_type);
 
   // Build update payload (only provided fields).
@@ -156,6 +217,37 @@ export async function PATCH(
   if (input.source_metadata !== undefined) updatePayload.source_metadata = input.source_metadata;
 
   const admin = createAdminClient();
+
+  // Suporte a edição direta de texto para documentos
+  if (input.content !== undefined && tipo === "documento") {
+    const textContent = input.content.trim();
+    if (!textContent) {
+      return fail("invalid_request", "O conteúdo do documento não pode ficar vazio.", 400, { requestId });
+    }
+    const blobPath = `${activeOrg.orgId}/${randomUUID()}.md`;
+    const { error: upErr } = await admin.storage
+      .from(BUCKET_DE_CONHECIMENTO)
+      .upload(blobPath, Buffer.from(textContent, "utf8"), {
+        contentType: "text/markdown",
+        upsert: false,
+      });
+
+    if (upErr) {
+      console.error("[ai-knowledge-sources] PATCH salvar documento falhou:", upErr.message);
+      return fail("internal_error", "Erro ao guardar o novo conteúdo do documento.", 500, { requestId });
+    }
+
+    const currentMeta = (ksRow.source_metadata as Record<string, unknown> | null) ?? {};
+    updatePayload.source_metadata = {
+      ...currentMeta,
+      ...((updatePayload.source_metadata as Record<string, unknown> | undefined) ?? {}),
+      blob_path: blobPath,
+      ext: "md",
+      origem: "texto_colado",
+    };
+    updatePayload.status = "ready";
+    updatePayload.last_index_error = null;
+  }
 
   if (Object.keys(updatePayload).length > 0) {
     const { error: updateErr } = await admin
