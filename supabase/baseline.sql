@@ -24454,4 +24454,39 @@ alter table "public"."tenant_integrations"
 
 notify pgrst, 'reload schema';
 
+-- 20261029233000_0253_reativar_conversas_inativas_fila.sql
+update public.conversations
+   set status = 'ai_handling',
+       bot_silenced_until = null,
+       last_handoff_at = null,
+       last_handoff_reason = null,
+       assignee_kind = 'ai',
+       status_changed_at = now(),
+       metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
+         'handoff_auto_resumed_at', now(),
+         'handoff_auto_resumed_reason', 'migration_0253_cleanup'
+       )
+ where status in ('pending', 'open')
+   and assigned_to_user_id is null
+   and (assignee_kind is null or assignee_kind != 'user');
+
+update public.contacts ct
+   set force_human = false
+ where ct.force_human = true
+   and exists (
+     select 1 from public.conversations c
+      where c.contact_id = ct.id
+        and c.organization_id = ct.organization_id
+        and c.assigned_to_user_id is null
+        and (c.assignee_kind is null or c.assignee_kind != 'user')
+   )
+   and not exists (
+     select 1 from public.conversations c_human
+      where c_human.contact_id = ct.id
+        and c_human.organization_id = ct.organization_id
+        and c_human.assigned_to_user_id is not null
+   );
+
+notify pgrst, 'reload schema';
+
 

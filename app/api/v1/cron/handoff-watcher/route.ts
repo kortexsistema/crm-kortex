@@ -71,11 +71,24 @@ async function handle(req: NextRequest): Promise<Response> {
     .lte("last_handoff_at", legacyCutoffIso)
     .limit(SCAN_LIMIT);
 
+  // (c) Casos legados da IA com bot_silenced_until='infinity' sem dono humano onde last_handoff_at excedeu 120min ou é nulo
+  const { data: legacyInfinityConversations, error: infErr } = await admin
+    .from("conversations")
+    .select("id, organization_id, bot_silenced_until, last_handoff_at")
+    .in("status", ["pending", "open"])
+    .is("assigned_to_user_id", null)
+    .eq("bot_silenced_until", "infinity")
+    .or(`last_handoff_at.lte.${legacyCutoffIso},last_handoff_at.is.null`)
+    .limit(SCAN_LIMIT);
+
   if (expErr) {
     logger.warn("[handoff-watcher] falha ao buscar conversas expiradas", { error: expErr.message });
   }
   if (legErr) {
     logger.warn("[handoff-watcher] falha ao buscar conversas legadas expiradas", { error: legErr.message });
+  }
+  if (infErr) {
+    logger.warn("[handoff-watcher] falha ao buscar conversas legadas infinity", { error: infErr.message });
   }
 
   // Deduplicar conversas para reativação
@@ -84,6 +97,9 @@ async function handle(req: NextRequest): Promise<Response> {
     candidateMap.set(c.id, { id: c.id, organization_id: c.organization_id });
   }
   for (const c of legacyStaleConversations ?? []) {
+    candidateMap.set(c.id, { id: c.id, organization_id: c.organization_id });
+  }
+  for (const c of legacyInfinityConversations ?? []) {
     candidateMap.set(c.id, { id: c.id, organization_id: c.organization_id });
   }
 

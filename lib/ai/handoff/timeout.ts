@@ -104,7 +104,7 @@ export async function reativarAutomaticoPorTimeout(
   try {
     const { data: conv, error: convErr } = await admin
       .from("conversations")
-      .select("id, contact_id, status, assigned_to_user_id, assignee_kind, bot_silenced_until, metadata")
+      .select("id, contact_id, status, assigned_to_user_id, assignee_kind, bot_silenced_until, last_handoff_at, metadata")
       .eq("id", conversationId)
       .eq("organization_id", organizationId)
       .maybeSingle();
@@ -121,14 +121,9 @@ export async function reativarAutomaticoPorTimeout(
     }
 
     // Regra 1: se um humano assumiu a conversa, o modo manual é permanente até que
-    // ele explicitamente devolva ou feche. Nunca auto-reativar!
+    // ele explicitamente devolva ou feche. NUNCA auto-reativar!
     if (conv.assigned_to_user_id !== null || conv.assignee_kind === "user") {
       return { ok: false, reason: "has_human_assignee", conversationId };
-    }
-
-    // Silêncio durável infinito: humano travou explicitamente.
-    if (conv.bot_silenced_until === "infinity") {
-      return { ok: false, reason: "silence_infinity", conversationId };
     }
 
     // Conversa encerrada
@@ -137,8 +132,18 @@ export async function reativarAutomaticoPorTimeout(
       return { ok: false, reason: "conversation_closed", conversationId };
     }
 
-    // Verifica se o prazo realmente já venceu
-    if (conv.bot_silenced_until) {
+    // Verifica se o prazo de silêncio realmente já venceu
+    if (conv.bot_silenced_until === "infinity") {
+      // Casos legados onde a IA gravava 'infinity' na fila sem operador humano (assigned_to_user_id is null):
+      // Se last_handoff_at for recente (< 120min), ainda aguarda na fila.
+      const lastHandoff = conv.last_handoff_at ? new Date(conv.last_handoff_at) : null;
+      if (lastHandoff && !Number.isNaN(lastHandoff.getTime())) {
+        const timeoutMs = DEFAULT_HANDOFF_TIMEOUT_MINUTES * 60 * 1000;
+        if (agora.getTime() - lastHandoff.getTime() < timeoutMs) {
+          return { ok: false, reason: "timeout_not_elapsed", conversationId };
+        }
+      }
+    } else if (conv.bot_silenced_until) {
       const ate = new Date(conv.bot_silenced_until);
       if (!Number.isNaN(ate.getTime()) && ate.getTime() > agora.getTime()) {
         return { ok: false, reason: "timeout_not_elapsed", conversationId };

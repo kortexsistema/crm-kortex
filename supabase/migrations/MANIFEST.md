@@ -316,4 +316,5 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20261024120000` | `0250_vehicle_import_transactional` | Confirmação atômica transacional de importação de veículos via PostgreSQL RPC (fn_confirm_vehicle_import), índice de idempotência e trava FOR UPDATE. |
 | `20261025120000` | `0251_vehicle_photos_bucket` | Bucket público 'vehicle-photos' no Supabase Storage para armazenamento, galeria e envio de fotos de veículos no WhatsApp. |
 | `20261026120000` | `0252_google_sheets_stock_integration` | Adiciona provider 'google_sheets' na constraint de tenant_integrations para sincronização automática de estoque/produtos e base de conhecimento. |
+| `20261029233000` | `0253_reativar_conversas_inativas_fila` | Reativação de conversas da fila sem operador humano retidas por inatividade ou silêncio legado (infinity), destravando os contatos para atendimento da IA. |
 

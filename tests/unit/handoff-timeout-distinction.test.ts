@@ -268,5 +268,68 @@ describe("Distinção de Comportamento de Handoff e Timeout", () => {
         }),
       );
     });
+
+    it("reativarAutomaticoPorTimeout reativa conversas legadas da fila com infinity quando sem dono humano e decorrido o prazo", async () => {
+      const handoffAntigo = new Date(Date.now() - 3 * 60 * 60 * 1000); // 3 horas atrás (> 120min)
+      const updateConvMock = vi.fn().mockReturnThis();
+      const updateContactMock = vi.fn().mockReturnThis();
+
+      const mockAdmin = {
+        from: (table: string) => {
+          if (table === "conversations") {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              is: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: {
+                  id: CONV_ID,
+                  contact_id: CONTACT_ID,
+                  status: "pending",
+                  assigned_to_user_id: null,
+                  assignee_kind: null,
+                  bot_silenced_until: "infinity",
+                  last_handoff_at: handoffAntigo.toISOString(),
+                  metadata: {},
+                },
+                error: null,
+              }),
+              update: updateConvMock,
+            };
+          }
+          if (table === "contacts") {
+            return {
+              update: updateContactMock,
+              eq: vi.fn().mockReturnThis(),
+            };
+          }
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            limit: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        },
+        rpc: vi.fn().mockResolvedValue({ error: null }),
+        channel: vi.fn().mockReturnValue({ send: vi.fn().mockResolvedValue(undefined) }),
+      } as unknown as Parameters<typeof reativarAutomaticoPorTimeout>[0];
+
+      const res = await reativarAutomaticoPorTimeout(mockAdmin, {
+        conversationId: CONV_ID,
+        organizationId: ORG_ID,
+      });
+
+      expect(res.ok).toBe(true);
+      expect(updateConvMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "ai_handling",
+          bot_silenced_until: null,
+          assignee_kind: "ai",
+        }),
+      );
+    });
   });
 });
+
