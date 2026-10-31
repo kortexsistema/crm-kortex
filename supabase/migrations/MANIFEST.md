@@ -317,4 +317,6 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20261025120000` | `0251_vehicle_photos_bucket` | Bucket público 'vehicle-photos' no Supabase Storage para armazenamento, galeria e envio de fotos de veículos no WhatsApp. |
 | `20261026120000` | `0252_google_sheets_stock_integration` | Adiciona provider 'google_sheets' na constraint de tenant_integrations para sincronização automática de estoque/produtos e base de conhecimento. |
 | `20261029233000` | `0253_reativar_conversas_inativas_fila` | Reativação de conversas da fila sem operador humano retidas por inatividade ou silêncio legado (infinity), destravando os contatos para atendimento da IA. |
+| `20261030200000` | `0254_operador_suporte_assume_conversa` | Permite que operador em suporte temporário com permissão de escrita ('full') possa assumir conversas (fn_conversation_assign) e consultar membros (fn_member_role_in_org) sem quebrar por ausência de linha física em user_organizations. |
+| `20261030210000` | `0255_message_templates_admin_write` | Permite que administradores da organização (admin+) e platform_admins visualizem, editem e excluam qualquer template (pessoal ou compartilhado) em /app/templates. |
 

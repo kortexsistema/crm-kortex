@@ -43,4 +43,11 @@ describe("TemplatesClient", () => {
     expect(screen.getAllByRole("button", { name: "Editar template" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Excluir template" })).toHaveLength(2);
   });
+
+  it("admin (isAdmin=true) vê ações em TODOS os templates (próprios, compartilhados e de outros)", () => {
+    render(wrap(<TemplatesClient canShare={true} isAdmin={true} currentUserId="u1" />));
+    // admin pode editar/excluir todos os 3 templates da organização.
+    expect(screen.getAllByRole("button", { name: "Editar template" })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: "Excluir template" })).toHaveLength(3);
+  });
 });

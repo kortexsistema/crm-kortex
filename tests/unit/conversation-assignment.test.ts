@@ -146,6 +146,49 @@ describe("POST /claim — idempotência do claim atômico", () => {
       p_enforce_expected: true,
     });
   });
+
+  it("claim por operador em suporte full → 200 com id do operador", async () => {
+    const SUPPORT_ACTOR = "99999999-9999-4999-8999-999999999999";
+    const state = stubState({
+      assignRows: [{ ...CONV_ROW, assigned_to_user_id: SUPPORT_ACTOR }],
+    });
+    const user: AuthUser = {
+      id: SUPPORT_ACTOR,
+      email: "support@example.com",
+      full_name: "Suporte Plataforma",
+      avatar_url: null,
+      is_platform_admin: true,
+      idioma: "pt-BR",
+      organizations: [],
+      support: {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        organization_id: ORG_ID,
+        actor_user_id: SUPPORT_ACTOR,
+        auth_session_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        previous_organization_id: null,
+        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        name: "Hirose Prev",
+        locale: "pt-BR",
+        access_mode: "full",
+        status: "active",
+      },
+    };
+    vi.mocked(requireRole).mockResolvedValue({
+      ok: true,
+      user,
+      org: { orgId: ORG_ID, name: "Hirose Prev", role: "admin" },
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(createClient).mockResolvedValue(makeSupabaseStub(state) as any);
+    const { POST } = await import("@/app/api/v1/conversations/[id]/claim/route");
+    const res = await POST(postReq("claim", {}), params);
+    expect(res.status).toBe(200);
+    expect(assignCall(state)?.args).toMatchObject({
+      p_organization_id: ORG_ID,
+      p_to_user_id: SUPPORT_ACTOR,
+      p_reason: "claim",
+    });
+  });
 });
 
 describe("POST /release — solta com evento na mesma transação", () => {

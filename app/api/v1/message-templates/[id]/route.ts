@@ -13,6 +13,7 @@ import { type NextRequest } from "next/server";
 import { audit } from "@/lib/audit";
 import { fail, ok, noContent } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
+import { roleAtLeast } from "@/lib/auth/types";
 import { updateTemplateSchema } from "@/lib/schemas/templates";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -44,10 +45,22 @@ export async function PATCH(req: NextRequest, { params }: RouteParams): Promise<
     });
   }
 
+  const { shared, ...fields } = parsed.data;
+  const updatePayload: Record<string, unknown> = {
+    ...fields,
+    updated_at: new Date().toISOString(),
+  };
+  if (shared !== undefined) {
+    if (shared && !roleAtLeast(org.role, "manager")) {
+      return fail("forbidden", t("Só manager+ cria ou compartilha template."), 403, { requestId });
+    }
+    updatePayload.owner_user_id = shared ? null : user.id;
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("message_templates")
-    .update({ ...parsed.data, updated_at: new Date().toISOString() })
+    .update(updatePayload)
     .eq("id", id)
     .eq("organization_id", org.orgId)
     .select(COLS)

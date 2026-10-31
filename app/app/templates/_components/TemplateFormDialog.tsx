@@ -43,6 +43,7 @@ interface UpdateInput {
   title: string;
   body: string;
   shortcut: string | null;
+  shared?: boolean;
 }
 
 export function TemplateFormDialog({ open, onOpenChange, canShare, template }: Props) {
@@ -85,6 +86,7 @@ export function TemplateFormDialog({ open, onOpenChange, canShare, template }: P
           title,
           body,
           shortcut: shortcut.trim() || null,
+          shared: canShare ? shared : undefined,
         });
         toast.success(t("Template atualizado."));
       } else {
@@ -156,7 +158,6 @@ export function TemplateFormDialog({ open, onOpenChange, canShare, template }: P
                 id="tpl-shared"
                 checked={shared}
                 onCheckedChange={setShared}
-                disabled={isEdit}
               />
               <Label htmlFor="tpl-shared">{t("Compartilhar com a equipe")}</Label>
             </div>

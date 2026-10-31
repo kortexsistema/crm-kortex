@@ -29,6 +29,13 @@ describe("suporte temporário vinculado à sessão real",()=>{
  ${assert(`(select name='Full B' from contacts where id='${contact}')`)}
  ${assert(`fn_member_role_in_org('${actor}','${b}') is null`)}
  `));
+ it("operador em suporte full pode assumir conversa diretamente",()=>prove(`
+ insert into conversations(id,organization_id,contact_id,status) values('${contact}','${b}','${contact}','open');
+ ${start("full")} ${claims()}
+ set local role authenticated;
+ ${assert(`(select count(*) from fn_conversation_assign('${b}','${contact}','${actor}','claim'))=1`)}
+ ${assert(`(select assigned_to_user_id='${actor}' and status='claimed' from conversations where id='${contact}')`)}
+ `));
  it("sessão distinta do mesmo ator não recebe grant nem restrição",()=>prove(`${start("support_readonly")} ${claims(other)}
  ${assert(`fn_support_context() is null and fn_user_role_in_org('${b}') is null and fn_support_write_allowed('${b}')`)}
  `));

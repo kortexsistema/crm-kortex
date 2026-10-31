@@ -29,10 +29,11 @@ const TEMPLATES_KEY = ["message-templates"];
 
 interface Props {
   canShare: boolean;
+  isAdmin?: boolean;
   currentUserId: string;
 }
 
-export function TemplatesClient({ canShare, currentUserId }: Props) {
+export function TemplatesClient({ canShare, isAdmin = false, currentUserId }: Props) {
   const t = useT();
   const { data: templates, isLoading } = useMessageTemplates();
   const qc = useQueryClient();
@@ -74,10 +75,11 @@ export function TemplatesClient({ canShare, currentUserId }: Props) {
       ) : (
         <ul className="space-y-2">
           {templates.map((template) => {
-            // Só quem pode editar/apagar pela RLS vê as ações: o dono do
+            // Só quem pode editar/apagar pela RLS vê as ações: admin/suporte, o dono do
             // pessoal, ou manager+ no compartilhado (owner null). Sem isto, um
             // agent veria botões que o backend rejeita (404/nada apagado).
             const canModify =
+              isAdmin ||
               template.owner_user_id === currentUserId ||
               (template.owner_user_id === null && canShare);
             return (

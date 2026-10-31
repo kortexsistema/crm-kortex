@@ -14,6 +14,7 @@ export const updateTemplateSchema = z
     title: z.string().trim().min(1).max(80),
     body: z.string().trim().min(1).max(4096),
     shortcut: z.string().trim().min(1).max(40).nullable(),
+    shared: z.boolean(),
   })
   .partial()
   .refine((d) => Object.keys(d).length > 0, { message: "Informe ao menos um campo." });

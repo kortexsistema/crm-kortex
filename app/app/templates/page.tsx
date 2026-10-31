@@ -11,6 +11,10 @@ export default async function TemplatesPage() {
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) redirect("/app/inbox");
   const canShare = ROLE_RANK[activeOrg.role] >= ROLE_RANK.manager;
+  const isAdmin =
+    activeOrg.role === "admin" ||
+    Boolean(user.is_platform_admin) ||
+    Boolean(user.support && user.support.status === "active" && user.support.access_mode === "full");
   // `t` local em vez do hook: esta página é componente de SERVIDOR, e lá o
   // idioma vem resolvido em `user.idioma` (a cadeia pessoa → organização →
   // padrão vive em `lib/auth/server.ts`), sem reler o `locale` cru.
@@ -29,7 +33,7 @@ export default async function TemplatesPage() {
           {t("Scripts salvos para responder mais rápido; pessoais ou compartilhados com a equipe.")}
         </p>
       </header>
-      <TemplatesClient canShare={canShare} currentUserId={user.id} />
+      <TemplatesClient canShare={canShare} isAdmin={isAdmin} currentUserId={user.id} />
     </div>
   );
 }

@@ -5,7 +5,6 @@ import {
   Manrope,
   Atkinson_Hyperlegible,
   Source_Serif_4,
-  IBM_Plex_Sans,
   IBM_Plex_Mono,
   JetBrains_Mono,
 } from "next/font/google";
@@ -51,12 +50,12 @@ export const sourceSerif = Source_Serif_4({
   variable: "--font-source-serif",
 });
 
-export const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
-  variable: "--font-plex-sans",
-});
+// Turbopack Next.js 16 bug: IBM_Plex_Sans currently fails in next/font/google
+// due to dynamic subsetting query params ("next/font/google queries have exactly one entry").
+// We define --font-plex-sans in showcase.css and provide a variable placeholder here.
+export const plexSans = {
+  variable: "font-plex-sans",
+};
 
 export const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
