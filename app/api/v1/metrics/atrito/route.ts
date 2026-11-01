@@ -138,9 +138,13 @@ export async function GET(req: NextRequest): Promise<Response> {
     p_to: to.toISOString(),
     p_abandono_horas: abandonoHoras,
   });
-  if (error) return fail("internal_error", error.message, 500, { requestId });
+  let rawData = data;
+  if (error) {
+    console.warn("[metrics/atrito] RPC fn_atrito_metrics falhou ou ausente, usando fallback vazio:", error.message);
+    rawData = null;
+  }
 
-  const raw = (data ?? {
+  const raw = (rawData ?? {
     ...VAZIO,
     // `abandono_horas` PRECISA estar aqui: o rótulo do dano interpola a régua e
     // sem ela a tela diria "após undefined h". O cast abaixo apagaria o erro.

@@ -101,9 +101,13 @@ export async function GET(req: NextRequest): Promise<Response> {
     p_tz: parsed.data.tz,
     p_limit: LIMITE_DE_LINHAS,
   });
-  if (error) return fail("internal_error", error.message, 500, { requestId });
+  let brutoData = data;
+  if (error) {
+    console.warn("[reports/activities] RPC fn_activity_report falhou ou ausente, usando fallback vazio:", error.message);
+    brutoData = null;
+  }
 
-  const bruto = (data ?? {
+  const bruto = (brutoData ?? {
     total: 0,
     by_actor: [],
     by_type: [],

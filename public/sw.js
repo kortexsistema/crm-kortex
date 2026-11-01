@@ -20,13 +20,27 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Minimal network-first fetch strategy to satisfy PWA requirements
-  // We don't cache anything complex to avoid stale app issues
+  // Ignora chamadas que não sejam GET
   if (event.request.method !== 'GET') return;
 
+  const url = new URL(event.request.url);
+
+  // NUNCA interceptar chamadas da API, rotas autenticadas dinâmicas (/app) ou extensões de terceiros
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/app') ||
+    url.pathname.startsWith('/admin') ||
+    url.origin !== self.location.origin
+  ) {
+    return;
+  }
+
+  // Apenas para assets estáticos ou root, com fallback seguro que nunca retorna undefined
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
+    fetch(event.request).catch(async () => {
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+      return new Response('', { status: 408, statusText: 'Network request failed' });
     })
   );
 });
