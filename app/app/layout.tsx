@@ -22,6 +22,8 @@ import { listarConexoesCaidas, type ConexaoCaida } from "@/lib/channels/health";
 import { tentarAutoAceitarConvitePendente } from "@/lib/auth/auto-accept-invite";
 import { logger } from "@/lib/logger";
 
+export const dynamic = "force-dynamic";
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user;
   let activeOrg;
@@ -31,12 +33,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (!user) redirect("/login");
     activeOrg = await resolveActiveOrg(user);
   } catch (err) {
-    // Next.js redirect lança uma exceção interna especial NEXT_REDIRECT que não deve ser engolida
-    if (err && typeof err === "object" && "digest" in err && typeof (err as { digest: unknown }).digest === "string" && (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")) {
+    // Next.js redirect e Dynamic Server Usage são controles internos que o Next precisa relançar
+    if (
+      err &&
+      typeof err === "object" &&
+      "digest" in err &&
+      typeof (err as { digest: unknown }).digest === "string" &&
+      ((err as { digest: string }).digest.startsWith("NEXT_REDIRECT") ||
+       (err as { digest: string }).digest.startsWith("DYNAMIC_SERVER_USAGE"))
+    ) {
       throw err;
     }
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (errMsg.includes("Dynamic server usage")) {
+      throw err;
+    }
+
     logger.error("[app/layout] Falha de sessão ou infraestrutura ao carregar layout", {
-      error: err instanceof Error ? err.message : String(err),
+      error: errMsg,
     });
     redirect("/login?reason=session_retry");
   }
