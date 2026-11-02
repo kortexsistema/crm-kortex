@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { lerInterface } from "@/lib/navigation/interface";
 /**
  * Server-side auth helpers — load AuthUser, resolve active org, gate routes.
@@ -105,7 +106,7 @@ export function ehSessaoAusente(error: { name?: string } | null | undefined): bo
   return error?.name === "AuthSessionMissingError";
 }
 
-export async function loadAuthUser(): Promise<AuthUser | null> {
+export const loadAuthUser = cache(async function loadAuthUser(): Promise<AuthUser | null> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -261,14 +262,14 @@ export async function loadAuthUser(): Promise<AuthUser | null> {
     organizations: memberships,
     support,
   };
-}
+});
 
 /**
  * Resolves the active organization for the current request.
  * Priority: cookie `active_org` (if member of) → first membership.
  * Returns null if user has zero memberships.
  */
-export async function resolveActiveOrg(authUser: AuthUser): Promise<ActiveOrg | null> {
+export const resolveActiveOrg = cache(async function resolveActiveOrg(authUser: AuthUser): Promise<ActiveOrg | null> {
   if (authUser.support) {
     if (authUser.support.status !== "active") redirect("/support-ended");
     return {
@@ -288,7 +289,7 @@ export async function resolveActiveOrg(authUser: AuthUser): Promise<ActiveOrg | 
     interface_settings: ativo.interface_settings,
     niche_id: ativo.niche_id ?? "ecommerce",
   };
-}
+});
 
 /**
  * For Server Components / Server Actions in /app/(app)/* routes — guarantees
@@ -304,11 +305,11 @@ export async function requireAuth(): Promise<AuthUser> {
  * Returns true if the current session has at least one verified TOTP factor.
  * Use only in Server Components / Server Actions (cookie session).
  */
-export async function isMfaEnrolled(): Promise<boolean> {
+export const isMfaEnrolled = cache(async function isMfaEnrolled(): Promise<boolean> {
   const supabase = await createClient();
   const { data } = await supabase.auth.mfa.listFactors();
   return !!data?.totp?.some((f) => f.status === "verified");
-}
+});
 
 /**
  * Quem é OBRIGADO a cadastrar a verificação em duas etapas.

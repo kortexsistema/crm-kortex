@@ -20,12 +20,26 @@ import { SubscriptionWarningBanner } from "@/components/app/SubscriptionWarningB
 import { IdiomaProvider } from "@/lib/i18n/IdiomaProvider";
 import { listarConexoesCaidas, type ConexaoCaida } from "@/lib/channels/health";
 import { tentarAutoAceitarConvitePendente } from "@/lib/auth/auto-accept-invite";
+import { logger } from "@/lib/logger";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const user = await loadAuthUser();
-  if (!user) redirect("/login");
+  let user;
+  let activeOrg;
 
-  let activeOrg = await resolveActiveOrg(user);
+  try {
+    user = await loadAuthUser();
+    if (!user) redirect("/login");
+    activeOrg = await resolveActiveOrg(user);
+  } catch (err) {
+    // Next.js redirect lança uma exceção interna especial NEXT_REDIRECT que não deve ser engolida
+    if (err && typeof err === "object" && "digest" in err && typeof (err as { digest: unknown }).digest === "string" && (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")) {
+      throw err;
+    }
+    logger.error("[app/layout] Falha de sessão ou infraestrutura ao carregar layout", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    redirect("/login?reason=session_retry");
+  }
 
   // Blindagem de sessão: usuário comum sem organização ativa NÃO pode navegar na casca do /app.
   if (!activeOrg && !user.is_platform_admin) {
