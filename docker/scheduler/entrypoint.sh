@@ -35,57 +35,43 @@ APP_ORIGIN="http://app:3000"
 # simples internas escapadas — dentro delas o sh não interpreta nada.
 SEGREDO_SEGURO="$(printf '%s' "$INTERNAL_SECRET" | sed "s/'/'\\\\''/g")"
 
-# minuto|timeout|caminho — uma linha por cron. O caminho vai COMPLETO de
-# propósito: o literal `api/v1/cron/<rota>` é o contrato que
+# minuto|delay(s)|timeout(s)|caminho — uma linha por cron. O caminho vai COMPLETO
+# de propósito: o literal `api/v1/cron/<rota>` é o contrato que
 # tests/unit/cron-routes-scheduled.test.ts (e mais dois) leem por grep — esse
 # teste compara a lista com o diretório app/api/v1/cron, e rota criada sem
 # agendamento reprova o CI.
-# A agenda do Google entra com DUAS cadências, e elas são diferentes de propósito.
 #
-# RENOVAÇÃO a cada 10 min: o access_token do Google expira em cerca de 1h, e a
-# rodada só renova quem está a menos de 15 min do vencimento. Dez minutos deixa
-# pelo menos uma tentativa de folga dentro da janela — a 15 min, um tick atrasado
-# já deixaria o token vencer. É barata: só toca conexão perto de expirar, e
-# rodada vazia não audita.
-#
-# SYNC a cada 15 min, e NÃO na mesma cadência. Os custos são diferentes: renovar
-# é uma requisição por conexão que está vencendo; sincronizar é uma por
-# calendário, sempre. Colar as duas obrigaria a escolher entre renovar raro
-# demais (e a agenda morre) ou sincronizar caro demais (e gasta cota do cliente).
-#
-# ⚠️ E o comentário fica AQUI, fora da string: dentro de CRONS= ele não seria
-# comentário, seria DADO — e crase em prosa dentro de aspas duplas o shell
-# EXECUTA. Foi o que quebrou o entrypoint na primeira tentativa desta linha.
+# ESCALONAMENTO POR SEGUNDO (CORREÇÃO CONTROLADA 01):
+# O campo `delay(s)` escalona os disparos ao longo dos 60 segundos de cada minuto
+# usando `sleep <delay> && curl ...`. Isso elimina a convergência simultânea no
+# segundo :00 (onde até 17 crons disparavam juntos), distribuindo a carga sobre o
+# Next.js e o Supavisor/PostgREST.
 CRONS="
-* * * * *|25|api/v1/cron/agent-dispatcher
-* * * * *|25|api/v1/cron/followup-flow-worker
-* * * * *|45|api/v1/cron/event-log-drain
-* * * * *|25|api/v1/cron/routing-worker
-* * * * *|25|api/v1/cron/recover-stuck-messages
-*/5 * * * *|25|api/v1/cron/storage-redaction?limit=50
-*/5 * * * *|25|api/v1/cron/snooze-watcher
-*/5 * * * *|25|api/v1/cron/attendant-heartbeat
-*/5 * * * *|60|api/v1/cron/webhook-log-retention
-*/5 * * * *|45|api/v1/cron/channel-health
-*/5 * * * *|45|api/v1/cron/handoff-watcher
-*/10 * * * *|60|api/v1/cron/contact-avatars
-*/10 * * * *|60|api/v1/cron/agenda-google-refresh
-*/15 * * * *|90|api/v1/cron/agenda-google-sync
-*/15 * * * *|90|api/v1/cron/appointment-reminders
-# A IDA. Cadência mais curta que a volta de propósito: quem marcou pela tela
-# espera ver o compromisso no celular dele em minutos, e a ida é barata (só
-# manda o que mudou). A volta é cara — varre calendário inteiro — e por isso
-# roda a cada 15.
-*/5 * * * *|60|api/v1/cron/agenda-google-push
-*/15 * * * *|60|api/v1/cron/risk-watcher
-*/30 * * * *|60|api/v1/cron/contact-phones
-*/30 * * * *|60|api/v1/cron/google-sheets-sync
-17 * * * *|60|api/v1/cron/contact-proposals-watcher
-0 12 * * *|60|api/v1/cron/lgpd-sla-watcher
-30 3 * * *|120|api/v1/cron/kb-conversations-batch
-15 4 * * *|60|api/v1/cron/sync-model-catalog
-40 4 * * *|120|api/v1/cron/data-retention
-0 5 * * *|60|api/v1/cron/subscription-watcher
+* * * * *|0|45|api/v1/cron/event-log-drain
+* * * * *|12|25|api/v1/cron/routing-worker
+* * * * *|24|25|api/v1/cron/agent-dispatcher
+* * * * *|36|25|api/v1/cron/followup-flow-worker
+* * * * *|48|25|api/v1/cron/recover-stuck-messages
+*/5 * * * *|4|25|api/v1/cron/storage-redaction?limit=50
+*/5 * * * *|8|60|api/v1/cron/agenda-google-push
+*/5 * * * *|16|25|api/v1/cron/snooze-watcher
+*/5 * * * *|20|60|api/v1/cron/webhook-log-retention
+*/5 * * * *|28|25|api/v1/cron/attendant-heartbeat
+*/5 * * * *|40|45|api/v1/cron/channel-health
+*/5 * * * *|52|45|api/v1/cron/handoff-watcher
+*/10 * * * *|14|60|api/v1/cron/contact-avatars
+*/10 * * * *|32|60|api/v1/cron/agenda-google-refresh
+*/15 * * * *|22|90|api/v1/cron/agenda-google-sync
+*/15 * * * *|44|90|api/v1/cron/appointment-reminders
+*/15 * * * *|56|60|api/v1/cron/risk-watcher
+*/30 * * * *|26|60|api/v1/cron/contact-phones
+*/30 * * * *|38|60|api/v1/cron/google-sheets-sync
+17 * * * *|10|60|api/v1/cron/contact-proposals-watcher
+0 12 * * *|10|60|api/v1/cron/lgpd-sla-watcher
+30 3 * * *|10|120|api/v1/cron/kb-conversations-batch
+15 4 * * *|10|60|api/v1/cron/sync-model-catalog
+40 4 * * *|10|120|api/v1/cron/data-retention
+0 5 * * *|10|60|api/v1/cron/subscription-watcher
 "
 
 # CRONTAB_PATH é ponto de injeção do teste (tests/shell/scheduler-entrypoint.test.sh).
@@ -96,10 +82,15 @@ DESTINO="${CRONTAB_PATH:-/etc/crontabs/root}"
 
 umask 077
 : > "$DESTINO"
-echo "$CRONS" | while IFS='|' read -r quando timeout rota; do
+echo "$CRONS" | while IFS='|' read -r quando delay timeout rota; do
   [ -n "$rota" ] || continue
-  printf '%s curl -fsS -m%s -H '"'"'Authorization: Bearer %s'"'"' "%s/%s" >/dev/null 2>&1\n' \
-    "$quando" "$timeout" "$SEGREDO_SEGURO" "$APP_ORIGIN" "$rota" >> "$DESTINO"
+  if [ -n "$delay" ] && [ "$delay" -gt 0 ] 2>/dev/null; then
+    printf '%s sleep %s && curl -fsS -m%s -H '"'"'Authorization: Bearer %s'"'"' "%s/%s" >/dev/null 2>&1\n' \
+      "$quando" "$delay" "$timeout" "$SEGREDO_SEGURO" "$APP_ORIGIN" "$rota" >> "$DESTINO"
+  else
+    printf '%s curl -fsS -m%s -H '"'"'Authorization: Bearer %s'"'"' "%s/%s" >/dev/null 2>&1\n' \
+      "$quando" "$timeout" "$SEGREDO_SEGURO" "$APP_ORIGIN" "$rota" >> "$DESTINO"
+  fi
 done
 
 exec crond -f -l 2
