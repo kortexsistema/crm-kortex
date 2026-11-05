@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
     ]),
   );
 
-  const orgIds = (orgs ?? []).map((o: { id: string }) => o.id);
+  // const orgIds = (orgs ?? []).map((o: { id: string }) => o.id); // not needed
 
   // Call the new RPCs to compute usage (bypasses max_rows limit)
   const [tenantStatsRes, dailyStatsRes] = await Promise.all([

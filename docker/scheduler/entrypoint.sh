@@ -84,7 +84,7 @@ umask 077
 : > "$DESTINO"
 echo "$CRONS" | while IFS='|' read -r quando delay timeout rota; do
   [ -n "$rota" ] || continue
-  if [ -n "$delay" ] && [ "$delay" -gt 0 ] 2>/dev/null; then
+  if [ -n "$delay" ] && [ "$delay" -ge 0 ] 2>/dev/null; then
     printf '%s sleep %s && curl -fsS -m%s -H '"'"'Authorization: Bearer %s'"'"' "%s/%s" >/dev/null 2>&1\n' \
       "$quando" "$delay" "$timeout" "$SEGREDO_SEGURO" "$APP_ORIGIN" "$rota" >> "$DESTINO"
   else

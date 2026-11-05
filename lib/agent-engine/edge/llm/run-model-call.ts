@@ -474,7 +474,7 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
     cacheReadTokens: rawUsage?.inputTokenDetails?.cacheReadTokens ?? 0,
     cacheWriteTokens: rawUsage?.inputTokenDetails?.cacheWriteTokens ?? 0,
   };
-  const cost = await costCents(db, model, usage);
+  const cost = await costCents(db, model, usage, config.provider);
 
   let callId = null;
   deps.log?.info('[DIAGNOSTICO] Tentando salvar em llm_calls via runModelCall', { organization_id: input.tenantId, purpose });

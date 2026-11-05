@@ -372,11 +372,7 @@ export const PONTOS_DE_IA: readonly PontoDeIa[] = [
     },
     sintomaDeFalha:
       "Você sobe um documento e ele nunca fica pronto para uso; o agente responde sem conhecer o seu material.",
-    // `nenhum`, e não `llm_calls`: `lib/ai/embed.ts` não chama `logInvocation`
-    // nem passa pelo seam — não há uma linha de telemetria para este ponto em
-    // lugar nenhum. Declarar a tabela certa seria mentir sobre uma cobertura
-    // que não existe; a dívida fica visível com o nome dela.
-    registraEm: "nenhum",
+    registraEm: "llm_calls",
   },
   {
     id: "embedding_consultar",
@@ -392,7 +388,7 @@ export const PONTOS_DE_IA: readonly PontoDeIa[] = [
     },
     sintomaDeFalha:
       "O agente responde de forma genérica, ignorando o que está escrito nos seus documentos.",
-    registraEm: "nenhum",
+    registraEm: "llm_calls",
   },
 
   // ───────────────────────────── Ver e ouvir ───────────────────────────────
@@ -423,7 +419,7 @@ export const PONTOS_DE_IA: readonly PontoDeIa[] = [
     },
     sintomaDeFalha:
       "O cliente manda áudio e o agente responde como se não tivesse recebido nada.",
-    registraEm: "nenhum",
+    registraEm: "llm_calls",
   },
   {
     id: "visao_de_imagem",

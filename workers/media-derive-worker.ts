@@ -17,6 +17,8 @@ import { deriveMediaText, type DeriveDeps } from "@/lib/messaging/media/derive";
 import { TIPOS_DERIVAVEIS } from "@/lib/messaging/media/derivable";
 import { deriveVideoText } from "@/lib/messaging/media/video-derive";
 import { apiTranscriptionProvider } from "@/lib/messaging/media/transcription";
+import { costCents, type TokenUsage } from "@/lib/agent-engine/edge/llm/pricing";
+import { normalizarErro } from "@/lib/agent-engine/edge/llm/run-model-call";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -286,27 +288,115 @@ function buildDeriveDeps(
       await avisarMidiaNaoLida(orgId, "imagem", `o provedor ${llm.provider} não está disponível nesta instalação`);
       return MARCADOR_NAO_LIDA;
     }
-    const res = await generateText({
-      model: factory(llm.apiKey, llm.defaultModel ?? ""),
-      abortSignal: signal,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Descreva objetivamente esta imagem em 1-2 frases, em português, para um atendente de vendas entender o que o cliente enviou." },
-            // AI SDK v7: file part com mediaType (o antigo image part é deprecated).
-            { type: "file", data: buffer, mediaType: mime.split(";")[0]! },
-          ],
-        },
-      ],
-    });
+
+    const modelId = llm.defaultModel ?? "";
+    const provider = llm.provider;
+    const startMs = Date.now();
+    let telemetriaGravada = false;
+
+    let res: Awaited<ReturnType<typeof generateText>>;
+    try {
+      res = await generateText({
+        model: factory(llm.apiKey, modelId),
+        abortSignal: signal,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Descreva objetivamente esta imagem em 1-2 frases, em português, para um atendente de vendas entender o que o cliente enviou." },
+              // AI SDK v7: file part com mediaType (o antigo image part é deprecated).
+              { type: "file", data: buffer, mediaType: mime.split(";")[0]! },
+            ],
+          },
+        ],
+      });
+    } catch (err) {
+      const latencyMs = Date.now() - startMs;
+      if (!telemetriaGravada) {
+        telemetriaGravada = true;
+        const norm = normalizarErro(err);
+        try {
+          await admin.from("llm_calls").insert({
+            organization_id: orgId,
+            purpose: "visao_de_imagem",
+            provider,
+            model: modelId,
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            cost_cents: null,
+            latency_ms: latencyMs,
+            status: "erro",
+            error_code: norm.error_code,
+            error_message: norm.error_message ? norm.error_message.slice(0, 500) : null,
+            http_status: norm.http_status,
+          });
+        } catch (telemetryErr) {
+          logger.warn("[media-derive] falha ao gravar telemetria de erro de visão", {
+            organization_id: orgId,
+            error: telemetryErr instanceof Error ? telemetryErr.message : String(telemetryErr),
+          });
+        }
+      }
+      throw err;
+    }
+
+    const latencyMs = Date.now() - startMs;
+    const promptTokens = res.usage?.promptTokens ?? 0;
+    const completionTokens = res.usage?.completionTokens ?? 0;
+    const usageObj = res.usage as { promptTokensDetails?: { cachedTokens?: number } } | undefined;
+    const cacheReadTokens = usageObj?.promptTokensDetails?.cachedTokens ?? 0;
+
+    let cost: number | null = null;
+    try {
+      const pool = derivePool();
+      const usage: TokenUsage = {
+        inputTokens: promptTokens,
+        outputTokens: completionTokens,
+        cacheReadTokens,
+        cacheWriteTokens: 0,
+      };
+      cost = await costCents(pool, modelId, usage, provider);
+    } catch (costErr) {
+      logger.warn("[media-derive] erro ao calcular custo de visão", {
+        modelId,
+        provider,
+        error: costErr instanceof Error ? costErr.message : String(costErr),
+      });
+    }
+
+    if (!telemetriaGravada) {
+      telemetriaGravada = true;
+      try {
+        await admin.from("llm_calls").insert({
+          organization_id: orgId,
+          purpose: "visao_de_imagem",
+          provider,
+          model: modelId,
+          input_tokens: promptTokens,
+          output_tokens: completionTokens,
+          cache_read_tokens: cacheReadTokens,
+          cache_write_tokens: 0,
+          cost_cents: cost,
+          latency_ms: latencyMs,
+          status: "ok",
+        });
+      } catch (telemetryErr) {
+        logger.warn("[media-derive] falha ao gravar telemetria de sucesso de visão", {
+          organization_id: orgId,
+          error: telemetryErr instanceof Error ? telemetryErr.message : String(telemetryErr),
+        });
+      }
+    }
+
     return res.text;
   };
   // Sem chave OpenAI não há como transcrever: devolver string vazia é honesto
   // (o derivado fica vazio e o marcador "[áudio]" continua valendo) e evita o
   // loop de 401 que retentava a cada drain.
   const transcriber: DeriveDeps["transcriber"] = openaiKey
-    ? apiTranscriptionProvider({ apiKey: openaiKey, signal })
+    ? apiTranscriptionProvider({ apiKey: openaiKey, signal, organizationId: orgId })
     : {
       transcribe: async () => {
         // Mesma razão da visão: devolver "" fazia o agente responder ao áudio

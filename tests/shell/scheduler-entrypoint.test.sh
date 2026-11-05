@@ -63,6 +63,12 @@ check "as $ROTAS_CODIGO rotas do código estão no crontab (achei $ROTAS_CRONTAB
 check "uma linha por cron, nenhuma vazia" \
   test "$(grep -c . "$TMP/crontab")" -eq "$(wc -l < "$TMP/crontab" | tr -d ' ')"
 
+echo "scheduler: escalonamento com sleep configurado para todas as 25 rotas"
+check "event-log-drain é gerado com sleep 0" \
+  grep -q 'sleep 0 && curl.*api/v1/cron/event-log-drain' "$TMP/crontab"
+check "todas as 25 rotas possuem sleep configurado (incluindo delay 0)" \
+  test "$(grep -c 'sleep [0-9]\+ && curl' "$TMP/crontab")" -eq 25
+
 echo "scheduler: o segredo atravessa o sh do crond intacto"
 # Os três caracteres que quebram interpolação ingênua, de uma vez só.
 HOSTIL='seg`whoami`redo$HOME-com'\''aspa-e-"aspas"'

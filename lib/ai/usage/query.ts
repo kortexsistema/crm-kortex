@@ -12,45 +12,55 @@ export async function fetchAggregatedUsage(
   const toIso = range.to.toISOString();
 
   let invRowsRaw: Record<string, unknown>[] = [];
-  let page = 0;
   const pageSize = 1000;
-  const maxRows = 50_000;
-  let hasMore = true;
+  let offset = 0;
+  let totalCount: number | null = null;
 
-  while (hasMore && invRowsRaw.length < maxRows) {
-    let invQ = supabase
-      .from("llm_calls")
-      .select("created_at, purpose, cost_cents, input_tokens, output_tokens, latency_ms, agent_id")
-      .eq("organization_id", orgId)
-      .gte("created_at", fromIso)
-      .lte("created_at", toIso)
-      .order("created_at", { ascending: true })
-      .range(page * pageSize, (page + 1) * pageSize - 1);
-
-    if (filters?.agent_id) invQ = invQ.eq("agent_id", filters.agent_id);
-    if (filters?.invocation_kind) invQ = invQ.eq("purpose", filters.invocation_kind);
-
-    const { data: pageData, error: invErr } = await invQ;
+  // Pagination using explicit offset
+  while (true) {
+    const { count, data: pageData, error: invErr } = await supabase
+      .from('llm_calls')
+      .select(
+        'created_at, purpose, cost_cents, input_tokens, output_tokens, latency_ms, agent_id',
+        { count: 'exact' }
+      )
+      .eq('organization_id', orgId)
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(offset, offset + pageSize - 1);
 
     if (invErr) {
-      console.warn("[ai-usage] llm_calls query failed", { error: invErr.message });
-      throw new Error("Erro ao consultar llm_calls");
+      console.warn('[ai-usage] llm_calls query failed', { error: invErr.message });
+      throw new Error('Erro ao consultar llm_calls');
+    }
+
+    if (totalCount === null) {
+      if (typeof count !== 'number') {
+        throw new Error('Count returned null from Supabase');
+      }
+      totalCount = count;
     }
 
     if (pageData && pageData.length > 0) {
       invRowsRaw = invRowsRaw.concat(pageData);
-      if (pageData.length < pageSize) {
-        hasMore = false;
-      }
+      offset += pageData.length;
+      if (offset >= (totalCount ?? 0)) break; // finished
     } else {
-      hasMore = false;
+      // Received empty page before reaching totalCount => inconsistency
+      throw new Error('Consulta incompleta: página vazia antes do total esperado');
     }
-    page++;
   }
+  // End of pagination – using explicit offset
 
   const invRows = ((invRowsRaw ?? []) as unknown as Array<{
-    created_at: string; purpose: string | null; cost_cents: number | null;
-    input_tokens: number | null; output_tokens: number | null; latency_ms: number | null;
+    created_at: string;
+    purpose: string | null;
+    cost_cents: number | null;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    latency_ms: number | null;
   }>).map((r) => ({
     created_at: r.created_at,
     invocation_kind: r.purpose ?? "turno",
